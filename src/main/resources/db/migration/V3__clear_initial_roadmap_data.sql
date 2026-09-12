@@ -1,0 +1,1 @@
+TRUNCATE TABLE roadmap_schedule, team_absence;

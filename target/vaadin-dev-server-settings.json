@@ -1,0 +1,18 @@
+{
+  "frontendFolder": "C:/Users/El perro/Documents/repos/java/roadmap/src/main/frontend",
+  "themeFolder": "themes",
+  "themeResourceFolder": "C:/Users/El perro/Documents/repos/java/roadmap/src/main/frontend/generated/jar-resources",
+  "staticOutput": "C:/Users/El perro/Documents/repos/java/roadmap/target/classes/META-INF/VAADIN/webapp/VAADIN/static",
+  "generatedFolder": "generated",
+  "statsOutput": "C:\\Users\\El perro\\Documents\\repos\\java\\roadmap\\target\\classes\\META-INF\\VAADIN\\config",
+  "frontendBundleOutput": "C:\\Users\\El perro\\Documents\\repos\\java\\roadmap\\target\\classes\\META-INF\\VAADIN\\webapp",
+  "devBundleOutput": "C:/Users/El perro/Documents/repos/java/roadmap/target/dev-bundle/webapp",
+  "devBundleStatsOutput": "C:/Users/El perro/Documents/repos/java/roadmap/target/dev-bundle/config",
+  "i18nOutput": "target/classes/vaadin-i18n",
+  "jarResourcesFolder": "C:/Users/El perro/Documents/repos/java/roadmap/src/main/frontend/generated/jar-resources",
+  "themeName": "roadmap",
+  "clientServiceWorkerSource": "C:\\Users\\El perro\\Documents\\repos\\java\\roadmap\\target\\sw.ts",
+  "pwaEnabled": false,
+  "offlineEnabled": false,
+  "offlinePath": "'offline.html'"
+}
