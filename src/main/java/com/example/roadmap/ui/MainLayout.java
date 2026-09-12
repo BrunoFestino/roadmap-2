@@ -15,6 +15,7 @@ import com.vaadin.flow.component.sidenav.SideNavItem;
 public class MainLayout extends AppLayout {
 
     public MainLayout() {
+        addClassName("app-shell");
         setPrimarySection(Section.DRAWER);
         addToNavbar(header());
         addToDrawer(navigation());
@@ -22,10 +23,9 @@ public class MainLayout extends AppLayout {
 
     private Header header() {
         H2 title = new H2("Team Roadmap");
-        title.getStyle().set("margin", "0").set("font-size", "1.25rem");
+        title.addClassName("app-brand-title");
         Header header = new Header(new DrawerToggle(), title);
-        header.getStyle().set("display", "flex").set("align-items", "center")
-                .set("gap", "0.5rem").set("padding", "0.5rem 1rem").set("width", "100%");
+        header.addClassName("app-header");
         return header;
     }
 
@@ -35,6 +35,7 @@ public class MainLayout extends AppLayout {
         navigation.addItem(new SideNavItem("Planificar tareas", TaskPlanningView.class, VaadinIcon.EDIT.create()));
         navigation.addItem(new SideNavItem(
                 "Ausencias del equipo", TeamAvailabilityView.class, VaadinIcon.USER_CLOCK.create()));
+        navigation.addClassName("app-navigation");
         return navigation;
     }
 }

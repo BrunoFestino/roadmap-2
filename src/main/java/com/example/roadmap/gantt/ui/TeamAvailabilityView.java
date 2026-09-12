@@ -66,11 +66,16 @@ public class TeamAvailabilityView extends VerticalLayout {
         DateFields.configure(startField);
         DateFields.configure(endField);
 
+        addClassName("app-page");
         setPadding(true);
         setSpacing(true);
         getStyle().set("font-family", GanttStyle.FONT).set("color", GanttStyle.INK);
 
-        add(title(), subtitle(), buildForm(), new Button("Actualizar ausencias", e -> refreshGrid()), grid);
+        Button reload = new Button("Actualizar ausencias", e -> refreshGrid());
+        reload.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
+        HorizontalLayout toolbar = new HorizontalLayout(reload);
+        toolbar.addClassNames("page-toolbar", "table-toolbar");
+        add(title(), subtitle(), buildForm(), toolbar, grid);
         configureGrid();
         bindForm();
         refreshGrid();
@@ -78,6 +83,7 @@ public class TeamAvailabilityView extends VerticalLayout {
 
     private H1 title() {
         H1 h1 = new H1("Ausencias del equipo (AR1)");
+        h1.addClassName("page-title");
         h1.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-weight", "700");
         return h1;
     }
@@ -85,6 +91,7 @@ public class TeamAvailabilityView extends VerticalLayout {
     private Span subtitle() {
         Span span = new Span("Vacaciones, cumpleaños, licencias, etc. Se cargan una sola vez y "
                 + "el roadmap las tiene en cuenta automáticamente en cada visita.");
+        span.addClassName("page-subtitle");
         span.getStyle().set("color", GanttStyle.MUTED).set("font-size", "14px");
         return span;
     }
@@ -112,12 +119,15 @@ public class TeamAvailabilityView extends VerticalLayout {
         cancelEditButton.setVisible(false);
 
         FlexLayout fields = new FlexLayout(memberField, typeField, startField, endField, noteField);
+        fields.addClassName("form-fields");
         fields.getStyle().set("gap", "12px").set("flex-wrap", "wrap").set("align-items", "flex-end");
 
         HorizontalLayout actions = new HorizontalLayout(saveButton, cancelEditButton);
+        actions.addClassName("form-actions");
         actions.setSpacing(true);
 
         VerticalLayout form = new VerticalLayout(fields, actions);
+        form.addClassNames("surface-card", "absence-form");
         form.setPadding(false);
         form.setSpacing(true);
         form.getStyle().set("background", GanttStyle.CARD_BG).set("border", "1px solid " + GanttStyle.BORDER)
@@ -212,6 +222,7 @@ public class TeamAvailabilityView extends VerticalLayout {
         grid.addColumn(TeamAbsence::note).setHeader("Nota").setAutoWidth(true);
         grid.addColumn(new ComponentRenderer<>(this::rowActions)).setHeader("").setAutoWidth(true);
         grid.setAllRowsVisible(true);
+        grid.addClassNames("data-grid", "absence-grid");
         grid.getStyle().set("margin-top", "16px");
     }
 

@@ -62,6 +62,7 @@ public class TaskPlanningView extends VerticalLayout {
         DateFields.configure(startField);
         DateFields.configure(endField);
 
+        addClassName("app-page");
         setPadding(true);
         setSpacing(true);
         getStyle().set("font-family", GanttStyle.FONT).set("color", GanttStyle.INK);
@@ -73,6 +74,7 @@ public class TaskPlanningView extends VerticalLayout {
 
     private Component title() {
         H1 title = new H1("Planificación de tareas");
+        title.addClassName("page-title");
         title.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-weight", "700");
         return title;
     }
@@ -80,6 +82,7 @@ public class TaskPlanningView extends VerticalLayout {
     private Component subtitle() {
         Span subtitle = new Span("Elegí una tarea abierta y definí su ventana de trabajo. "
                 + "Las tareas en progreso mantienen su fecha de inicio.");
+        subtitle.addClassName("page-subtitle");
         subtitle.getStyle().set("color", GanttStyle.MUTED).set("font-size", "14px");
         return subtitle;
     }
@@ -87,7 +90,9 @@ public class TaskPlanningView extends VerticalLayout {
     private Component toolbar() {
         Button reload = new Button("Actualizar tareas", event -> reloadTasks());
         reload.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-        return new HorizontalLayout(reload);
+        HorizontalLayout toolbar = new HorizontalLayout(reload);
+        toolbar.addClassName("page-toolbar");
+        return toolbar;
     }
 
     private void configureGrid() {
@@ -100,6 +105,8 @@ public class TaskPlanningView extends VerticalLayout {
         grid.setSelectionMode(Grid.SelectionMode.SINGLE);
         grid.asSingleSelect().addValueChangeListener(event -> selectTask(event.getValue()));
         grid.setWidthFull();
+        grid.setHeight("clamp(300px, 38vh, 420px)");
+        grid.addClassNames("data-grid", "planning-grid");
     }
 
     private Component planningForm() {
@@ -112,11 +119,14 @@ public class TaskPlanningView extends VerticalLayout {
         saveButton.addClickListener(event -> save());
 
         HorizontalLayout fields = new HorizontalLayout(startField, endField, saveButton);
+        fields.addClassName("form-fields");
         fields.setAlignItems(Alignment.END);
         fields.setSpacing(true);
         fields.setWrap(true);
 
         VerticalLayout form = new VerticalLayout(selectedTask, fields);
+        form.addClassNames("surface-card", "planning-form");
+        selectedTask.addClassName("selection-instruction");
         form.setPadding(false);
         form.setSpacing(true);
         form.getStyle().set("background", GanttStyle.CARD_BG).set("border", "1px solid " + GanttStyle.BORDER)

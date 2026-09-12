@@ -77,6 +77,8 @@ public class RoadmapView extends VerticalLayout {
     private static final int HISTOGRAM_HEIGHT_PX = 72;
     /** Width of the leading name column, shared by the header and every grid row. */
     private static final int USAGE_NAME_COL_PX = 200;
+    /** Visual inset for person and task rows while preserving the role's weekly axis. */
+    private static final int USAGE_NESTED_INSET_PX = 8;
     private static final DateTimeFormatter MONTH_BAND =
             DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-AR"));
     private static final DateTimeFormatter DAY_MONTH_SHORT =
@@ -100,6 +102,7 @@ public class RoadmapView extends VerticalLayout {
         this.buildPersonGantt = buildPersonGantt;
         this.buildWorkloadReport = buildWorkloadReport;
 
+        addClassNames("app-page", "roadmap-page");
         setPadding(true);
         setSpacing(true);
         getStyle().set("font-family", GanttStyle.FONT).set("color", GanttStyle.INK);
@@ -107,18 +110,25 @@ public class RoadmapView extends VerticalLayout {
         results.getStyle().set("margin-top", "12px").set("width", "100%")
                 .set("display", "flex").set("flex-direction", "column").set("gap", "24px");
 
-        add(title(), subtitle(), new HorizontalLayout(new Button("Actualizar roadmap", e -> render()), updatedAt), legend, results, footnote);
+        Button reload = new Button("Actualizar roadmap", e -> render());
+        reload.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_TERTIARY);
+        HorizontalLayout toolbar = new HorizontalLayout(reload, updatedAt);
+        toolbar.addClassName("page-toolbar");
+        updatedAt.addClassName("updated-at");
+        add(title(), subtitle(), toolbar, legend, results, footnote);
         render();
     }
 
     private H1 title() {
         H1 title = new H1("Team Roadmap");
+        title.addClassName("page-title");
         title.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-weight", "700");
         return title;
     }
 
     private Span subtitle() {
         Span span = new Span("Equipo AR1 · Jira y planificación local · capacidad sobre tareas fechadas");
+        span.addClassName("page-subtitle");
         span.getStyle().set("color", GanttStyle.MUTED).set("font-size", "14px");
         return span;
     }
@@ -140,10 +150,8 @@ public class RoadmapView extends VerticalLayout {
             results.add(freeFromSection(workload));
 
             results.add(epicLegend(roleChart));
-            results.add(sectionTitle("Roadmap - Por rol"));
-            results.add(new GanttChartWidget(roleChart, 16, 7));
-            results.add(sectionTitle("Roadmap - Por persona"));
-            results.add(new GanttChartWidget(personChart, 16, 7));
+            results.add(ganttSection("Roadmap - Por rol", roleChart, "gantt-role-section"));
+            results.add(ganttSection("Roadmap - Por persona", personChart, "gantt-person-section"));
 
             results.add(unplannedSection(workload));
             renderFootnote(roleChart);
@@ -175,6 +183,7 @@ public class RoadmapView extends VerticalLayout {
         }
 
         Div legend = new Div();
+        legend.addClassName("epic-legend");
         legend.getStyle().set("display", "flex").set("flex-wrap", "wrap").set("align-items", "center")
                 .set("gap", "6px 14px").set("font-size", "11.5px").set("color", GanttStyle.MUTED)
                 .set("background", GanttStyle.WEEKEND_BG).set("border", "1px solid " + GanttStyle.BORDER)
@@ -204,6 +213,17 @@ public class RoadmapView extends VerticalLayout {
         h2.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-size", "16px")
                 .set("font-weight", "700").set("margin", "0 0 4px");
         return h2;
+    }
+
+    private Component ganttSection(String title, GanttChart chart, String className) {
+        H2 heading = sectionTitle(title);
+        heading.addClassName("gantt-section-heading");
+        GanttChartWidget gantt = new GanttChartWidget(chart, 16, 7);
+        gantt.addClassName("gantt-section-chart");
+        VerticalLayout section = compactLayout();
+        section.addClassNames("gantt-section", className);
+        section.add(heading, gantt);
+        return section;
     }
 
     private String formatShortDate(LocalDate date) {
@@ -259,6 +279,7 @@ public class RoadmapView extends VerticalLayout {
         List<WeekLoad> roleWeeks = RoleWorkload.aggregate(people, weekStarts);
 
         Div grid = new Div();
+        grid.addClassName("usage-role-grid");
         grid.getStyle().set("display", "grid").set("grid-template-columns", gridTemplate(weekStarts.size()))
                 .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
         grid.add(roleNameCell(role, people, roleWeeks));
@@ -267,13 +288,14 @@ public class RoadmapView extends VerticalLayout {
         }
 
         VerticalLayout inner = compactLayout();
+        inner.addClassName("usage-people");
         inner.getStyle().set("gap", "6px");
         for (PersonWorkload person : people) {
             inner.add(personUsageRow(person, weekStarts, asOf));
         }
 
         Details details = new Details(grid, inner);
-        details.addClassName("usage-row");
+        details.addClassNames("usage-row", "usage-role-row");
         details.setOpened(true);
         details.getStyle().set("width", "100%");
         details.getElement().getStyle().set("--lumo-space-m", "6px");
@@ -283,13 +305,16 @@ public class RoadmapView extends VerticalLayout {
     private Div roleNameCell(RoleWorkload role, List<PersonWorkload> people, List<WeekLoad> roleWeeks) {
         Span name = new Span(role.roleLabel());
         name.getStyle().set("font-size", "13px").set("font-weight", "800").set("color", GanttStyle.PRIMARY_900);
+        Div identity = new Div(levelChip("ROL", "usage-role-chip"), name);
+        identity.addClassName("usage-row-identity");
 
         double weeklyCapacity = roleWeeks.isEmpty() ? 0 : roleWeeks.get(roleWeeks.size() - 1).capacityHours();
         Span detail = new Span(people.size() + (people.size() == 1 ? " persona" : " personas")
                 + " · " + formatHours(weeklyCapacity) + " h/semana");
         detail.getStyle().set("font-size", "10.5px").set("color", GanttStyle.MUTED);
 
-        Div cell = new Div(name, detail);
+        Div cell = new Div(identity, detail);
+        cell.addClassName("usage-role-name");
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("background", "#FFFFFF").set("padding", "8px 10px")
                 .set("border-left", "4px solid " + role.roleColor());
@@ -419,7 +444,7 @@ public class RoadmapView extends VerticalLayout {
             index += span;
         }
 
-        grid.add(headerCornerCell(cornerNote));
+        grid.add(headerCornerCell(cornerTitle, cornerNote));
         LocalDate currentWeek = asOf.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         for (int week = 0; week < weekStarts.size(); week++) {
             grid.add(weekHeaderCell(weekStarts.get(week), week + 1, weekStarts.get(week).equals(currentWeek)));
@@ -430,6 +455,12 @@ public class RoadmapView extends VerticalLayout {
     /** One column template, reused by the header and every row, so the columns actually line up. */
     private String gridTemplate(int weeks) {
         return USAGE_NAME_COL_PX + "px repeat(" + weeks + ", minmax(86px, 1fr))";
+    }
+
+    /** Keeps nested week columns aligned after their container receives a visual inset. */
+    private String nestedGridTemplate(int weeks) {
+        return (USAGE_NAME_COL_PX - USAGE_NESTED_INSET_PX)
+                + "px repeat(" + weeks + ", minmax(86px, 1fr))";
     }
 
     private Div monthBandCell(String text, int span, boolean first) {
@@ -443,8 +474,8 @@ public class RoadmapView extends VerticalLayout {
         return cell;
     }
 
-    private Div headerCornerCell(String note) {
-        Span title = new Span("Rol y estado");
+    private Div headerCornerCell(String heading, String note) {
+        Span title = new Span(heading);
         title.getStyle().set("font-size", "10px").set("font-weight", "800").set("color", GanttStyle.MUTED)
                 .set("text-transform", "uppercase").set("letter-spacing", "0.7px");
         Span detail = new Span(note);
@@ -454,6 +485,21 @@ public class RoadmapView extends VerticalLayout {
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("background", "#FFFFFF").set("padding", "5px 10px");
         return cell;
+    }
+
+    /** A single compact header for a person's task rows, using the same weekly axis as its parent. */
+    private Div compactTaskWeekHeader(List<LocalDate> weekStarts, LocalDate asOf) {
+        Div grid = new Div();
+        grid.addClassName("usage-task-header");
+        grid.getStyle().set("display", "grid").set("grid-template-columns", nestedGridTemplate(weekStarts.size()))
+                .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
+
+        grid.add(headerCornerCell("Tareas de la persona", "ventana · esfuerzo · dedicación"));
+        LocalDate currentWeek = asOf.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+        for (int week = 0; week < weekStarts.size(); week++) {
+            grid.add(weekHeaderCell(weekStarts.get(week), week + 1, weekStarts.get(week).equals(currentWeek)));
+        }
+        return grid;
     }
 
     private Div weekHeaderCell(LocalDate weekStart, int number, boolean current) {
@@ -527,7 +573,8 @@ public class RoadmapView extends VerticalLayout {
 
     private Component personUsageRow(PersonWorkload person, List<LocalDate> weekStarts, LocalDate asOf) {
         Div grid = new Div();
-        grid.getStyle().set("display", "grid").set("grid-template-columns", gridTemplate(weekStarts.size()))
+        grid.addClassName("usage-person-grid");
+        grid.getStyle().set("display", "grid").set("grid-template-columns", nestedGridTemplate(weekStarts.size()))
                 .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
 
         grid.add(usageNameCell(person));
@@ -536,7 +583,7 @@ public class RoadmapView extends VerticalLayout {
         }
 
         Details details = new Details(grid, taskBreakdown(person, asOf));
-        details.addClassName("usage-row");
+        details.addClassNames("usage-row", "usage-person-row");
         details.getStyle().set("width", "100%");
         details.getElement().getStyle().set("--lumo-space-m", "6px");
         return details;
@@ -545,12 +592,15 @@ public class RoadmapView extends VerticalLayout {
     private Div usageNameCell(PersonWorkload person) {
         Span name = new Span(person.name());
         name.getStyle().set("font-size", "12.5px").set("font-weight", "600").set("color", GanttStyle.PRIMARY_900);
+        Div identity = new Div(levelChip("PERSONA", "usage-person-chip"), name);
+        identity.addClassName("usage-row-identity");
         Span role = new Span(person.roleLabel()
                 + (person.hasOverallocation() ? " · sobreasignado" : ""));
         role.getStyle().set("font-size", "11px")
                 .set("color", person.hasOverallocation() ? "#B3261E" : GanttStyle.MUTED);
 
-        Div cell = new Div(name, role);
+        Div cell = new Div(identity, role);
+        cell.addClassName("usage-person-name");
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("background", "#FFFFFF").set("padding", "8px 10px")
                 .set("border-left", "3px solid " + person.roleColor());
@@ -657,13 +707,15 @@ public class RoadmapView extends VerticalLayout {
 
         if (tasks.isEmpty()) {
             VerticalLayout empty = compactLayout();
+            empty.addClassName("usage-task-breakdown");
             empty.getStyle().set("padding", "6px 0 6px 12px");
             empty.add(emptyNote("Sin tareas planificadas en el horizonte."));
             return empty;
         }
 
         Div grid = new Div();
-        grid.getStyle().set("display", "grid").set("grid-template-columns", gridTemplate(weekStarts.size()))
+        grid.addClassName("usage-task-grid");
+        grid.getStyle().set("display", "grid").set("grid-template-columns", nestedGridTemplate(weekStarts.size()))
                 .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
 
         List<TaskLoad> ordered = tasks.values().stream()
@@ -685,8 +737,9 @@ public class RoadmapView extends VerticalLayout {
         }
 
         VerticalLayout content = compactLayout();
+        content.addClassName("usage-task-breakdown");
         content.getStyle().set("padding", "6px 0 8px 0").set("width", "100%");
-        content.add(weekHeader(weekStarts, asOf, "Tarea", "ventana · esfuerzo · dedicación"), grid,
+        content.add(compactTaskWeekHeader(weekStarts, asOf), grid,
                 breakdownLegend());
         return content;
     }
@@ -694,6 +747,7 @@ public class RoadmapView extends VerticalLayout {
     /** Explains the two conventions of the breakdown that a colour alone cannot carry. */
     private Div breakdownLegend() {
         Div legend = new Div();
+        legend.addClassName("usage-task-legend");
         legend.getStyle().set("display", "flex").set("flex-wrap", "wrap").set("align-items", "center")
                 .set("gap", "6px 16px").set("font-size", "11px").set("color", GanttStyle.MUTED)
                 .set("padding", "6px 2px");
@@ -714,7 +768,7 @@ public class RoadmapView extends VerticalLayout {
 
         Span key = new Span(task.taskKey());
         key.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-        Div keyLine = new Div(dot, key);
+        Div keyLine = new Div(dot, levelChip("TAREA", "usage-task-chip"), key);
         keyLine.getStyle().set("display", "flex").set("align-items", "center").set("gap", "6px");
         Span summary = new Span(task.summary());
         summary.getStyle().set("font-size", "11px").set("color", GanttStyle.INK)
@@ -725,8 +779,14 @@ public class RoadmapView extends VerticalLayout {
 
         Div cell = new Div(keyLine, summary, window);
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
-                .set("background", "#FFFFFF").set("padding", "8px 10px 8px 24px").set("min-width", "0");
+                .set("background", "#FFFFFF").set("padding", "8px 10px").set("min-width", "0");
         return cell;
+    }
+
+    private Span levelChip(String label, String className) {
+        Span chip = new Span(label);
+        chip.addClassNames("usage-level-chip", className);
+        return chip;
     }
 
     /**
@@ -741,8 +801,17 @@ public class RoadmapView extends VerticalLayout {
         value.getStyle().set("font-size", hours > 0 ? "11px" : "10px")
                 .set("color", hours > 0 ? GanttStyle.INK : "#9AA4AA");
 
-        Div cell = new Div(value, new Span(formatHours(pending) + " h pendientes"));
-        cell.getStyle().set("padding", "8px").set("min-height", "42px")
+        Span pendingValue = new Span(formatHours(pending) + " h pendientes");
+        pendingValue.addClassName("usage-task-pending");
+
+        Div cell = new Div();
+        cell.addClassName("usage-task-hours");
+        cell.add(value);
+        if (insideWindow) {
+            cell.add(pendingValue);
+        }
+        cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
+                .set("gap", "3px").set("padding", "8px").set("min-height", "42px")
                 .set("background", insideWindow ? "#EAF2F6" : "#FCFCFD");
         if (insideWindow) {
             cell.getStyle().set("box-shadow", "inset 0 0 0 1px #D3E3EB");
@@ -769,7 +838,7 @@ public class RoadmapView extends VerticalLayout {
 
         Div cell = new Div(label, note);
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
-                .set("background", GanttStyle.WEEKEND_BG).set("padding", "6px 10px 6px 24px");
+                .set("background", GanttStyle.WEEKEND_BG).set("padding", "6px 10px");
         return cell;
     }
 
@@ -1062,9 +1131,11 @@ public class RoadmapView extends VerticalLayout {
 
     private Component executiveSection(String title, String description, Component content) {
         VerticalLayout section = compactLayout();
+        section.addClassName("roadmap-section");
         section.getStyle().set("background", "#F9FBFC").set("border", "1px solid " + GanttStyle.BORDER)
                 .set("border-radius", "10px").set("padding", "16px").set("gap", "8px");
         Span text = new Span(description);
+        text.addClassName("section-description");
         text.getStyle().set("font-size", "12.5px").set("color", GanttStyle.MUTED);
         section.add(sectionTitle(title), text, content);
         return section;
@@ -1091,6 +1162,7 @@ public class RoadmapView extends VerticalLayout {
         org.slf4j.LoggerFactory.getLogger(RoadmapView.class).error("Roadmap refresh failed", e);
         updatedAt.setText("La actualización falló");
         Div box = new Div(new Span("No se pudo cargar el roadmap. Reintentá con Actualizar roadmap."));
+        box.addClassName("inline-error");
         box.getStyle().set("color", "#B3261E").set("background", "#FDECEA")
                 .set("border", "1px solid #F5C6C2").set("border-radius", "8px")
                 .set("padding", "12px 16px").set("font-size", "14px");
@@ -1101,6 +1173,7 @@ public class RoadmapView extends VerticalLayout {
 
     private void renderLegend() {
         legend.removeAll();
+        legend.addClassName("visual-legend");
         legend.getStyle()
                 .set("display", "flex").set("flex-wrap", "wrap").set("gap", "14px")
                 .set("align-items", "center").set("margin-top", "4px");
