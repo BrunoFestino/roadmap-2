@@ -1,62 +1,12 @@
 package com.example.roadmap.gantt.application.model;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import java.time.LocalDate;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.function.Predicate;
+
 /**
- * Spreads a task's effort across its calendar window — Microsoft Project calls this the
+ * Spreads a task's effort across its calendar window - Microsoft Project calls this the
  * task's <em>timephased work</em>, or work contour.
  *
  * <p>This is the single place the roadmap turns "2 MD between the 3rd and the 14th" into
@@ -66,7 +16,7 @@ import java.util.stream.*;
  *
  * <h2>The model</h2>
  * <ul>
- *   <li>One MD is {@value #HOURS_PER_MD} hours of effort — {@link GanttTask#workHours()}.</li>
+ *   <li>One MD is {@value #HOURS_PER_MD} hours of effort - {@link GanttTask#workHours()}.</li>
  *   <li>A person contributes {@value #PRODUCTIVE_HOURS_PER_DAY} productive hours on an
  *       available working day; the rest of the day goes to meetings, breaks and context
  *       switching. That is the capacity every load is measured against.</li>
@@ -156,7 +106,7 @@ public final class WorkContour {
      * says is still owed over the days that genuinely remain. A task that is behind therefore
      * gets denser as its deadline approaches, exactly as it does in real life.
      *
-     * <p>Zero once the window has run out — work owed past its own end date is late, not
+     * <p>Zero once the window has run out - work owed past its own end date is late, not
      * scheduled, and silently pushing it into next week would invent a plan nobody made.
      */
     public static double remainingDailyHours(GanttTask task, Predicate<LocalDate> absent, LocalDate asOf) {

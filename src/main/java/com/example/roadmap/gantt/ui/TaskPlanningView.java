@@ -1,60 +1,36 @@
 package com.example.roadmap.gantt.ui;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import com.example.roadmap.config.JiraProperties;
+import com.example.roadmap.gantt.application.data.RoadmapSnapshot;
+import com.example.roadmap.gantt.application.data.TargetStartRepository;
+import com.example.roadmap.gantt.application.data.TeamAbsenceRepository;
+import com.example.roadmap.gantt.application.model.GanttTeamRoster;
+import com.example.roadmap.gantt.application.model.TeamMember;
+import com.example.roadmap.gantt.application.model.WorkContour;
+import com.example.roadmap.gantt.ui.style.GanttStyle;
+import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.dto.JiraIssueDto;
+import com.example.roadmap.ui.MainLayout;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.router.PageTitle;
+import com.vaadin.flow.router.Route;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.function.Predicate;
+
 /**
  * Lets roadmap owners plan the dates of open AR1 Jira tasks without editing files directly.
  * An in-progress task keeps its already established start date immutable.
@@ -74,12 +50,17 @@ public class TaskPlanningView extends VerticalLayout {
     private final DatePicker endField = new DatePicker("Fin");
     private final Button saveButton = new Button("Guardar fechas");
     private TaskPlan selected;
+    private final transient TeamAbsenceRepository absenceRepository;
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(TaskPlanningView.class);
 
     public TaskPlanningView(JiraClient jiraClient, JiraProperties jiraProperties,
-                            TargetStartRepository scheduleRepository) {
+                            TargetStartRepository scheduleRepository, TeamAbsenceRepository absenceRepository) {
         this.jiraClient = jiraClient;
         this.jiraProperties = jiraProperties;
         this.scheduleRepository = scheduleRepository;
+        this.absenceRepository = absenceRepository;
+        DateFields.configure(startField);
+        DateFields.configure(endField);
 
         setPadding(true);
         setSpacing(true);
@@ -133,6 +114,7 @@ public class TaskPlanningView extends VerticalLayout {
         HorizontalLayout fields = new HorizontalLayout(startField, endField, saveButton);
         fields.setAlignItems(Alignment.END);
         fields.setSpacing(true);
+        fields.setWrap(true);
 
         VerticalLayout form = new VerticalLayout(selectedTask, fields);
         form.setPadding(false);
@@ -142,7 +124,7 @@ public class TaskPlanningView extends VerticalLayout {
         return form;
     }
 
-    private void reloadTasks() {
+    private boolean reloadTasks() {
         try {
             Map<String, TargetStartRepository.Schedule> schedules = scheduleRepository.findSchedules();
             List<TaskPlan> plans = jiraClient
@@ -154,10 +136,11 @@ public class TaskPlanningView extends VerticalLayout {
                     .toList();
             grid.setItems(plans);
             selectTask(null);
+            return true;
         } catch (RuntimeException e) {
-            grid.setItems(List.of());
-            selectTask(null);
-            showError("No se pudieron cargar las tareas: " + e.getMessage());
+            LOG.error("Loading task planning failed", e);
+            showError("No se pudieron actualizar las tareas. Conservamos los datos visibles; podés reintentar.");
+            return false;
         }
     }
 
@@ -176,7 +159,7 @@ public class TaskPlanningView extends VerticalLayout {
         if (jiraStart == null) {
             jiraStart = parseDate(fields.firstTimeInProgress());
         }
-        return new TaskPlan(issue.key(), fields.summary() == null ? issue.key() : fields.summary(), member.name(), status,
+        return new TaskPlan(issue.key(), fields.summary() == null ? issue.key() : fields.summary(), member.name(), member.username(), status,
                 scheduledStart, schedule == null ? null : schedule.endDate(),
                 isInProgress(status), scheduledStart == null ? jiraStart : scheduledStart);
     }
@@ -217,9 +200,21 @@ public class TaskPlanningView extends VerticalLayout {
             showError("La fecha de fin no puede ser anterior a la de inicio.");
             return;
         }
-        scheduleRepository.saveSchedule(selected.issueKey(), startDate, endDate);
-        showSuccess("Fechas guardadas para " + selected.issueKey() + ".");
-        reloadTasks();
+        String key = selected.issueKey();
+        try {
+            Predicate<LocalDate> absent = RoadmapSnapshot.calendar(absenceRepository.findAll(), selected.username());
+            if (WorkContour.capacityHours(startDate, endDate, absent) <= 0) {
+                showError("La ventana no tiene días disponibles para esta persona. Revisá fines de semana y ausencias.");
+                return;
+            }
+            scheduleRepository.saveSchedule(key, startDate, endDate);
+        } catch (RuntimeException e) {
+            LOG.error("Saving schedule failed for {}", key, e);
+            showError("No se guardaron las fechas de " + key + ". Conservamos el formulario; podés reintentar.");
+            return;
+        }
+        if (reloadTasks()) showSuccess("Fechas guardadas para " + key + ".");
+        else showError("Las fechas de " + key + " se guardaron, pero falló la recarga. Usá Actualizar tareas.");
     }
 
     private boolean isInProgress(String status) {
@@ -251,7 +246,7 @@ public class TaskPlanningView extends VerticalLayout {
         notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
     }
 
-    private record TaskPlan(String issueKey, String summary, String assignee, String status,
+    private record TaskPlan(String issueKey, String summary, String assignee, String username, String status,
                             LocalDate startDate, LocalDate endDate, boolean startLocked,
                             LocalDate lockedStartDate) {
     }

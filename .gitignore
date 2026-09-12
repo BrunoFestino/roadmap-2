@@ -1,0 +1,7 @@
+/target/
+/.tools/node_modules/
+/.tools/evidence/
+/.lavish/
+/node_modules/
+.env
+*.log

@@ -1,61 +1,17 @@
 package com.example.roadmap.gantt.application.analytics;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
-
+import com.example.roadmap.config.JiraProperties;
+import com.example.roadmap.gantt.application.data.GanttDataProvider;
+import com.example.roadmap.gantt.application.data.RoadmapSnapshot;
+import com.example.roadmap.gantt.application.data.TeamAbsenceRepository;
+import com.example.roadmap.gantt.application.model.GanttTask;
+import com.example.roadmap.gantt.application.model.GanttTeamRoster;
+import com.example.roadmap.gantt.application.model.LevelledContour;
+import com.example.roadmap.gantt.application.model.Role;
+import com.example.roadmap.gantt.application.model.TeamAbsence;
+import com.example.roadmap.gantt.application.model.TeamMember;
+import com.example.roadmap.gantt.application.model.WorkContour;
+import com.example.roadmap.gantt.application.model.WorkingDays;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
@@ -64,7 +20,9 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Predicate;
+import org.springframework.stereotype.Service;
 
 /**
  * Builds the workload report behind the roadmap's resource views, following Microsoft
@@ -85,7 +43,7 @@ import java.util.function.Predicate;
  * </ol>
  *
  * <p>Consequently a two-week, two-MD task reports 1.6 h/day and roughly 27% utilization
- * instead of blocking its owner for two weeks — the distortion that made the previous effort
+ * instead of blocking its owner for two weeks - the distortion that made the previous effort
  * roadmap unreadable.
  *
  * <h2>What is deliberately excluded</h2>
@@ -98,8 +56,8 @@ import java.util.function.Predicate;
  * </ul>
  *
  * <p>Nothing here is rescheduled or written back. Effort is levelled <em>inside</em> each
- * task's committed window, so an overallocation that survives is a real one — the work does
- * not fit in the dates it was promised in — but no date the team agreed on is ever moved.
+ * task's committed window, so an overallocation that survives is a real one - the work does
+ * not fit in the dates it was promised in - but no date the team agreed on is ever moved.
  * The roadmap bars keep showing those committed windows untouched.
  */
 @Service
@@ -137,12 +95,21 @@ public class BuildWorkloadReportUseCase {
      * Builds the report as of an arbitrary date, so the calculation can be exercised
      * deterministically in tests without depending on the real current date.
      */
+    public RoadmapSnapshot loadSnapshot() {
+        return dataProvider.snapshot(absenceRepository.findAll());
+    }
+
     public WorkloadReport build(LocalDate asOf) {
+        return build(loadSnapshot(), asOf);
+    }
+
+    public WorkloadReport build(RoadmapSnapshot snapshot, LocalDate asOf) {
         List<LocalDate> weekStarts = weekStarts(asOf);
         LocalDate horizonStart = weekStarts.get(0);
         LocalDate horizonEnd = weekStarts.get(weekStarts.size() - 1).plusDays(6);
 
-        List<GanttTask> allTasks = dataProvider.tasks();
+        List<GanttTask> allTasks = snapshot.tasks();
+        Map<String, List<TeamAbsence>> calendars = snapshot.absencesByPerson();
         List<GanttTask> executableTasks = allTasks.stream().filter(task -> !task.isContextWork()).toList();
 
         Map<String, List<GanttTask>> tasksByUsername = new LinkedHashMap<>();
@@ -153,7 +120,7 @@ public class BuildWorkloadReportUseCase {
         Map<Role, List<PersonWorkload>> peopleByBucket = new LinkedHashMap<>();
         for (TeamMember member : GanttTeamRoster.members()) {
             PersonWorkload person = buildPerson(member, tasksByUsername.getOrDefault(member.username(), List.of()),
-                    weekStarts, asOf);
+                    weekStarts, asOf, calendars.getOrDefault(member.username(), List.of()));
             peopleByBucket.computeIfAbsent(member.role().bucket(), bucket -> new ArrayList<>()).add(person);
         }
 
@@ -167,7 +134,19 @@ public class BuildWorkloadReportUseCase {
                     RoleWorkload.aggregate(people, weekStarts), earliestFreeFrom(people)));
         }
 
-        return new WorkloadReport(asOf, horizonStart, horizonEnd, weekStarts, roles, unplannedTasks(allTasks));
+        List<UnplannedTask> unplanned = new ArrayList<>(snapshot.undatedTasks());
+        unplanned.addAll(unplannedTasks(allTasks));
+        List<PlanningWarning> warnings = new ArrayList<>();
+        for (GanttTask task : executableTasks) {
+            Predicate<LocalDate> absent = RoadmapSnapshot.calendar(snapshot.absences(), task.assignee().username());
+            String reason = null;
+            if (task.remainingWorkHours() <= 0) reason = "Estimación agotada en una tarea abierta: revisar esfuerzo restante";
+            else if (task.end().isBefore(asOf)) reason = "Vencida: requiere replanificación";
+            else if (WorkContour.capacityHours(task.start().isAfter(asOf) ? task.start() : asOf, task.end(), absent) <= 0)
+                reason = "Ventana sin días disponibles";
+            if (reason != null) warnings.add(new PlanningWarning(task.key(), task.summary(), task.assignee().name(), task.remainingWorkHours(), reason));
+        }
+        return new WorkloadReport(asOf, horizonStart, horizonEnd, List.copyOf(weekStarts), List.copyOf(roles), List.copyOf(unplanned), List.copyOf(warnings));
     }
 
     /** One bucket per week, aligned to Monday so weeks read the way the team talks about them. */
@@ -181,8 +160,8 @@ public class BuildWorkloadReportUseCase {
     }
 
     private PersonWorkload buildPerson(TeamMember member, List<GanttTask> tasks, List<LocalDate> weekStarts,
-                                       LocalDate asOf) {
-        Predicate<LocalDate> absent = date -> absenceRepository.isAbsent(member.username(), date);
+                                       LocalDate asOf, List<TeamAbsence> absences) {
+        Predicate<LocalDate> absent = date -> absences.stream().anyMatch(a -> a.covers(date));
         // Levelled once for the whole person, because a task's share of a week can only be
         // decided in the company of the other tasks competing for the same days.
         LevelledContour plan = LevelledContour.plan(tasks, absent);
@@ -208,19 +187,18 @@ public class BuildWorkloadReportUseCase {
             double plannedTail = 0;
             for (GanttTask task : tasks) {
                 double hours = plan.hoursIn(task, weekStart, weekEnd);
-                if (hours <= 0) {
-                    continue;
-                }
+                double pending = remainingFrom.isAfter(weekEnd) ? 0 : remaining.hoursIn(task, remainingFrom, weekEnd);
                 assignedHours += hours;
                 if (!remainingFrom.isAfter(weekEnd)) {
-                    // What is genuinely left to do, from Jira's logged hours — not the slice of
+                    // What is genuinely left to do, from Jira's logged hours - not the slice of
                     // the original plan that happens to fall on the days still ahead.
-                    remainingAssignedHours += remaining.hoursIn(task, remainingFrom, weekEnd);
+                    remainingAssignedHours += pending;
                     plannedTail += plan.hoursIn(task, remainingFrom, weekEnd);
                 }
+                if (hours <= 0 && pending <= 0) continue;
                 breakdown.add(new TaskLoad(task.key(), task.summary(), hours,
                         plan.dailyHoursIn(task, weekStart, weekEnd), task.status(),
-                        task.start(), task.end(), task.md(), task.effectiveEpicKey()));
+                        task.start(), task.end(), task.md(), task.effectiveEpicKey(), pending));
             }
             breakdown.sort(Comparator.comparingDouble(TaskLoad::hours).reversed());
 
@@ -230,27 +208,32 @@ public class BuildWorkloadReportUseCase {
                     Math.max(0, remainingAssignedHours - plannedTail), List.copyOf(breakdown)));
         }
 
-        LocalDate freeFrom = freeFrom(weeks, asOf);
+        LocalDate freeFrom = freeFrom(weeks, asOf, tasks, remaining, absent);
         return new PersonWorkload(member.username(), member.name(), member.role().label(), member.role().color(),
-                member.role().bucket().label(), List.copyOf(weeks), freeFrom, totalFreeHours(weeks, freeFrom));
+                member.role().bucket().label(), List.copyOf(weeks), freeFrom, totalFreeHours(weeks, freeFrom, tasks, remaining, absent));
     }
 
     /**
      * First date the person drops below {@link #BUSY_THRESHOLD_PCT} with capacity to spare.
      * A fully absent week does not count as availability, and neither does a week already
-     * booked to the brim — which is exactly what "libre desde" has to mean to be useful.
+     * booked to the brim - which is exactly what "libre desde" has to mean to be useful.
      *
      * <p>The answer is never a date in the past: when the current week still has room, the
      * date reported is today, not the Monday that started it.
      */
-    private LocalDate freeFrom(List<WeekLoad> weeks, LocalDate asOf) {
-        return weeks.stream()
-                .filter(week -> !week.unavailable())
-                .filter(WeekLoad::hasTimeLeft)
-                .filter(week -> week.utilizationPct() < BUSY_THRESHOLD_PCT)
-                .map(week -> week.weekStart().isBefore(asOf) ? asOf : week.weekStart())
-                .findFirst()
-                .orElse(null);
+    private LocalDate freeFrom(List<WeekLoad> weeks, LocalDate asOf, List<GanttTask> tasks,
+                               LevelledContour remaining, Predicate<LocalDate> absent) {
+        for (WeekLoad week : weeks) {
+            if (week.freeHours() <= 0.000001 || week.remainingCapacityHours() <= 0) continue;
+            LocalDate first = week.weekStart().isBefore(asOf) ? asOf : week.weekStart();
+            for (LocalDate day = first; !day.isAfter(week.weekEnd()); day = day.plusDays(1)) {
+                if (WorkingDays.isWeekend(day) || absent.test(day)) continue;
+                double assigned = 0;
+                for (GanttTask task : tasks) assigned += remaining.hoursIn(task, day, day);
+                if (assigned < WorkContour.PRODUCTIVE_HOURS_PER_DAY * BUSY_THRESHOLD_PCT / 100.0 - 0.000001) return day;
+            }
+        }
+        return null;
     }
 
     /**
@@ -259,13 +242,18 @@ public class BuildWorkloadReportUseCase {
      * booked in as if they were available, which is exactly the number a manager cannot use.
      * When the person never drops below the busy threshold this is zero, not a total.
      */
-    private double totalFreeHours(List<WeekLoad> weeks, LocalDate freeFrom) {
+    private double totalFreeHours(List<WeekLoad> weeks, LocalDate freeFrom, List<GanttTask> tasks,
+                                  LevelledContour remaining, Predicate<LocalDate> absent) {
         if (freeFrom == null) {
             return 0;
         }
         return weeks.stream()
                 .filter(week -> !week.weekEnd().isBefore(freeFrom))
-                .mapToDouble(WeekLoad::freeHours)
+                .mapToDouble(week -> {
+                    LocalDate from = week.weekStart().isBefore(freeFrom) ? freeFrom : week.weekStart();
+                    double work = tasks.stream().mapToDouble(task -> remaining.hoursIn(task, from, week.weekEnd())).sum();
+                    return Math.max(0, WorkContour.capacityHours(from, week.weekEnd(), absent) - work);
+                })
                 .sum();
     }
 

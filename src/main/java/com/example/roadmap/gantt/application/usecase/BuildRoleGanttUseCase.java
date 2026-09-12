@@ -1,62 +1,19 @@
 package com.example.roadmap.gantt.application.usecase;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
+import com.example.roadmap.gantt.application.data.GanttDataProvider;
+import com.example.roadmap.gantt.application.dto.GanttChart;
+import com.example.roadmap.gantt.application.dto.GanttGroup;
+import com.example.roadmap.gantt.application.model.GanttTask;
+import com.example.roadmap.gantt.application.model.Milestone;
+import com.example.roadmap.gantt.application.model.Role;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+
 /**
- * Builds the "Roadmap Gantt — View by Role": one group per role bucket present, holding
+ * Builds the "Roadmap Gantt - View by Role": one group per role bucket present, holding
  * that bucket's tasks ordered by planned start date. {@code FULL_STACK} members fold into
  * {@code BACKEND} here (see {@link Role#bucket()}); the "By person" view still shows their
  * real role.
@@ -73,9 +30,13 @@ public class BuildRoleGanttUseCase {
     }
 
     public GanttChart build() {
-        List<GanttTask> tasks = GanttBounds.withinWindow(dataProvider.tasks());
+        return build(dataProvider.tasks(), dataProvider.milestones());
+    }
+
+    public GanttChart build(List<GanttTask> input, List<Milestone> milestones) {
+        List<GanttTask> tasks = GanttBounds.withinWindow(input);
         List<GanttGroup> groups = new ArrayList<>();
-        addContextGroups(groups, tasks);
+        addContextGroups(groups, tasks, milestones);
 
         for (Role bucket : BUCKETS) {
             List<GanttTask> bucketTasks = tasks.stream()
@@ -91,13 +52,13 @@ public class BuildRoleGanttUseCase {
 
         LocalDate start = GanttBounds.min(tasks);
         LocalDate end = GanttBounds.max(tasks);
-        return new GanttChart(start, end, groups, dataProvider.milestones());
+        return new GanttChart(start, end, groups, milestones);
     }
 
-    private void addContextGroups(List<GanttGroup> groups, List<GanttTask> tasks) {
+    private void addContextGroups(List<GanttGroup> groups, List<GanttTask> tasks, List<Milestone> milestones) {
         List<GanttTask> epics = tasks.stream().filter(GanttTask::isEpic)
                 .sorted(Comparator.comparing(GanttTask::start)).toList();
-        if (!epics.isEmpty() || !dataProvider.milestones().isEmpty()) {
+        if (!epics.isEmpty() || !milestones.isEmpty()) {
             groups.add(new GanttGroup("Milestones y épicas", "#6554C0", epics));
         }
         List<GanttTask> stories = tasks.stream().filter(GanttTask::isUserStory)

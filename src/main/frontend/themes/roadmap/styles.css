@@ -1,0 +1,25 @@
+/* Keep every week aligned while leaving the expand control inside the name column. */
+.usage-row > vaadin-details-summary {
+    position: relative;
+    padding: 4px 0;
+}
+
+.usage-row > vaadin-details-summary::part(toggle) {
+    position: absolute;
+    left: 8px;
+    margin: 0;
+    z-index: 1;
+}
+
+.usage-row > vaadin-details-summary::part(content) {
+    width: 100%;
+    min-width: 0;
+}
+
+.usage-row > vaadin-details-summary > div > div:first-child {
+    padding-left: 34px !important;
+}
+
+.usage-row::part(content) {
+    padding: 0;
+}

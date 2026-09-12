@@ -1,60 +1,8 @@
 package com.example.roadmap.gantt.application.model;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import java.time.LocalDate;
+import java.util.function.Predicate;
+
 /**
  * A single planned piece of work in the roadmap: one Jira issue assigned to an AR1 team
  * member, modelled with Microsoft Project's scheduling identity
@@ -62,12 +10,12 @@ import java.util.stream.*;
  *
  * <p>The three variables are kept explicit and independent:
  * <ul>
- *   <li><strong>Work</strong> — {@link #md()}, the effort estimate. One MD is
+ *   <li><strong>Work</strong> - {@link #md()}, the effort estimate. One MD is
  *       {@value WorkContour#HOURS_PER_MD} hours of effort.</li>
- *   <li><strong>Duration</strong> — the calendar commitment {@link #displayStartDate()} to
+ *   <li><strong>Duration</strong> - the calendar commitment {@link #displayStartDate()} to
  *       {@link #plannedEndDate()}, read from the maintained database schedule. It is a business
  *       commitment, never derived from the effort.</li>
- *   <li><strong>Units</strong> — the resulting daily dedication, computed on demand by
+ *   <li><strong>Units</strong> - the resulting daily dedication, computed on demand by
  *       {@link WorkContour}. It is what makes "how busy is this person" answerable.</li>
  * </ul>
  *
@@ -77,9 +25,9 @@ import java.util.stream.*;
  *
  * <p>The start date is deliberately split in two:
  * <ul>
- *   <li>{@link #actualStartDate()} — a date read directly from the Target Start source or
+ *   <li>{@link #actualStartDate()} - a date read directly from the Target Start source or
  *       from an issue's first In Progress transition.
- *   <li>{@link #plannedStartDate()} — the roadmap date. It equals the real source date:
+ *   <li>{@link #plannedStartDate()} - the roadmap date. It equals the real source date:
  *       items without either source are intentionally excluded instead of being inferred.
  * </ul>
  *
@@ -181,7 +129,7 @@ public record GanttTask(
      *
      * <p>This is what makes availability a fact rather than an assumption. Without it the only
      * way to read a week that is already half spent is to assume the work planned for Monday
-     * got done — an assumption nothing in the data supports. Logged hours answer it instead.
+     * got done - an assumption nothing in the data supports. Logged hours answer it instead.
      *
      * <p>Clamped at zero: a task that burned more hours than estimated owes nothing further,
      * it simply cost more than planned, and that overrun belongs to a velocity report rather
@@ -198,7 +146,7 @@ public record GanttTask(
 
     /**
      * {@code true} when either the effort or the start date is not a real value read
-     * directly from Jira — drives the dashed-border treatment in the widget.
+     * directly from Jira - drives the dashed-border treatment in the widget.
      */
     public boolean estimated() {
         return mdEstimated || !startDateSource.isActual();

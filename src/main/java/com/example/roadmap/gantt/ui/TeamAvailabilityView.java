@@ -1,60 +1,35 @@
 package com.example.roadmap.gantt.ui;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import com.example.roadmap.gantt.application.data.TeamAbsenceRepository;
+import com.example.roadmap.gantt.application.model.AbsenceType;
+import com.example.roadmap.gantt.application.model.GanttTeamRoster;
+import com.example.roadmap.gantt.application.model.TeamAbsence;
+import com.example.roadmap.gantt.application.model.TeamMember;
+import com.example.roadmap.gantt.ui.style.GanttStyle;
+import com.example.roadmap.ui.MainLayout;
+import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.button.ButtonVariant;
+import com.vaadin.flow.component.combobox.ComboBox;
+import com.vaadin.flow.component.datepicker.DatePicker;
+import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.notification.Notification;
+import com.vaadin.flow.component.notification.NotificationVariant;
+import com.vaadin.flow.component.orderedlayout.FlexLayout;
+import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
+import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.binder.Binder;
+import com.vaadin.flow.data.binder.ValidationException;
+import com.vaadin.flow.data.binder.ValidationResult;
+import com.vaadin.flow.data.renderer.ComponentRenderer;
+import com.vaadin.flow.router.PageTitle;
+import com.vaadin.flow.router.Route;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+
 /**
  * Where the roadmap owner sets the AR1 team's absences (vacations, birthdays, sick leave,
  * etc.) once, so they are loaded automatically on every future visit and can still be
@@ -84,15 +59,18 @@ public class TeamAvailabilityView extends VerticalLayout {
 
     private final Binder<FormValues> binder = new Binder<>(FormValues.class);
     private String editingId;
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(TeamAvailabilityView.class);
 
     public TeamAvailabilityView(TeamAbsenceRepository repository) {
         this.repository = repository;
+        DateFields.configure(startField);
+        DateFields.configure(endField);
 
         setPadding(true);
         setSpacing(true);
         getStyle().set("font-family", GanttStyle.FONT).set("color", GanttStyle.INK);
 
-        add(title(), subtitle(), buildForm(), grid);
+        add(title(), subtitle(), buildForm(), new Button("Actualizar ausencias", e -> refreshGrid()), grid);
         configureGrid();
         bindForm();
         refreshGrid();
@@ -125,7 +103,7 @@ public class TeamAvailabilityView extends VerticalLayout {
 
         startField.setRequiredIndicatorVisible(true);
         endField.setRequiredIndicatorVisible(true);
-        noteField.setPlaceholder("Ej: medio día, aviso corto, etc.");
+        noteField.setPlaceholder("Ej: vacaciones. Se descuentan días completos.");
         noteField.setWidth("220px");
 
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -185,7 +163,8 @@ public class TeamAvailabilityView extends VerticalLayout {
             resetForm();
             refreshGrid();
         } catch (RuntimeException e) {
-            showError("No se pudo guardar: " + e.getMessage());
+            LOG.error("Saving absence failed", e);
+            showError("No se guardó la ausencia. Conservamos el formulario; podés reintentar.");
         }
     }
 
@@ -211,12 +190,16 @@ public class TeamAvailabilityView extends VerticalLayout {
     }
 
     private void deleteRow(TeamAbsence absence) {
-        repository.delete(absence.id());
-        if (absence.id().equals(editingId)) {
-            resetForm();
+        try {
+            repository.delete(absence.id());
+        } catch (RuntimeException e) {
+            LOG.error("Deleting absence failed for {}", absence.id(), e);
+            showError("No se eliminó la ausencia. Podés reintentar.");
+            return;
         }
-        refreshGrid();
+        if (absence.id().equals(editingId)) resetForm();
         showSuccess("Ausencia eliminada.");
+        refreshGrid();
     }
 
     // ── grid ─────────────────────────────────────────────────────────────────────
@@ -244,8 +227,12 @@ public class TeamAvailabilityView extends VerticalLayout {
     }
 
     private void refreshGrid() {
-        List<TeamAbsence> all = repository.findAll();
-        grid.setItems(all);
+        try {
+            grid.setItems(repository.findAll());
+        } catch (RuntimeException e) {
+            LOG.error("Loading absences failed", e);
+            showError("No se pudo actualizar la lista de ausencias. Los cambios confirmados siguen guardados. Usá Actualizar ausencias.");
+        }
     }
 
     private String memberName(String username) {

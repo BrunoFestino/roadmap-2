@@ -1,67 +1,27 @@
 package com.example.roadmap.gantt.ui.widget;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import com.example.roadmap.gantt.application.dto.GanttChart;
+import com.example.roadmap.gantt.application.dto.GanttGroup;
+import com.example.roadmap.gantt.application.model.EpicPalette;
+import com.example.roadmap.gantt.application.model.GanttTask;
+import com.example.roadmap.gantt.application.model.Milestone;
+import com.example.roadmap.gantt.application.model.WorkingDays;
+import com.example.roadmap.gantt.ui.style.GanttStyle;
+import com.vaadin.flow.component.html.Div;
+import com.vaadin.flow.component.html.Span;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Locale;
 
 /**
  * Renders a {@link GanttChart} as an absolutely positioned, fixed pixel-per-day canvas.
  *
  * <p>Each group (a role or a person) gets its tasks packed into sub-lanes by
  * {@link GanttLanePacker} so overlapping tasks are never hidden behind one another. Every
- * bar's width is {@code working days * PX_PER_DAY} — never stretched or clamped — with its
+ * bar's width is {@code working days * PX_PER_DAY} - never stretched or clamped - with its
  * planned finish date always drawn next to it. Milestones are full-height dashed markers on
  * the timeline, never rows.
  */
@@ -367,8 +327,7 @@ public class GanttChartWidget extends Div {
                 + (placed.task().hasCalendarWindow() ? "" : " (sin ventana planificada: se asume 100%)")
                 + "\nEffort: " + placed.task().md() + " MD ("
                 + formatHours(placed.task().workHours()) + " h)"
-                + "\nDedication: " + Math.round(WorkContour.units(placed.task(), date -> false) * 100) + "% ("
-                + formatHours(WorkContour.dailyHours(placed.task(), date -> false)) + " h/día de 6 h)"
+                + "\nCarga y disponibilidad: consultar el desglose semanal"
                 + "\nAssignee: " + placed.task().assignee().name()
                 + "\nRole: " + placed.task().assignee().role().label()
                 + "\nÉpica: " + (placed.task().missingEpic()
@@ -411,7 +370,7 @@ public class GanttChartWidget extends Div {
      * The task's start date, mirroring the end date on the other side of the bar so a window
      * reads without going to the axis. It normally sits to the left of the bar, but a bar that
      * starts near the canvas edge has no room there, so the date is drawn inside the bar
-     * instead — the same fallback Microsoft Project uses for labels that do not fit outside.
+     * instead - the same fallback Microsoft Project uses for labels that do not fit outside.
      * A bar too narrow for both the date and its title keeps only the title; the date is still
      * in the tooltip.
      */
@@ -426,7 +385,7 @@ public class GanttChartWidget extends Div {
     }
 
     /**
-     * Every bar takes the colour of the epic it serves — including the epic's own bar and the
+     * Every bar takes the colour of the epic it serves - including the epic's own bar and the
      * user stories under it, which is what makes one initiative recognisable across groups
      * that otherwise have nothing to do with each other. The role is not encoded here on
      * purpose: the roadmap is already grouped by role or by person, so the group heading

@@ -1,118 +1,34 @@
 package com.example.roadmap.gantt.application.model;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
-/**
- * One person's tasks scheduled <em>together</em>, so effort settles on the days that still
- * have room instead of being smeared evenly over every window.
- *
- * <h2>Why this exists</h2>
- * <p>{@link WorkContour} spreads a task flatly across its own window, and it does so knowing
- * nothing about the person's other tasks — its entry point takes a single {@code GanttTask}.
- * Independently computed contours are only summed afterwards, so a task with three weeks of
- * slack contributes the same hours to a week that is already at 160% as to the two half-empty
- * weeks beside it. The plan it describes is one nobody would ever actually work.
- *
- * <p>This class replaces that per-task view with a per-person one. It is Microsoft Project's
- * <em>Level Only Within Available Slack</em>: work moves inside its own window, and nothing
- * else moves at all.
- *
- * <h2>The two rules</h2>
- * <ol>
- *   <li><strong>Committed dates are untouchable.</strong> A task's hours never land outside
- *       the window the database schedule gave it, and its total effort never changes. Only the
- *       distribution <em>within</em> that window is decided here, so no date the team agreed
- *       on is ever quietly rewritten.</li>
- *   <li><strong>The tightest task is served first.</strong> Tasks are ordered by slack —
- *       the productive hours their window offers, minus the hours they need. A task that
- *       barely fits, or does not fit at all, has nowhere else to go and therefore claims its
- *       days before a flexible one gets to choose.</li>
- * </ol>
- *
- * <h2>How the hours land: water-filling</h2>
- * <p>Each task is poured into its window like water into an uneven container, settling into
- * the lowest days first until the surface is level. That single rule covers the cases that
- * matter, without any of them being special-cased:
- * <ul>
- *   <li>An empty window fills evenly, reproducing the familiar flat contour exactly.</li>
- *   <li>A window with a partly used day still uses <em>the room that day has left</em>
- *       rather than skipping it — a day holding 5.5 h of a 6 h capacity contributes its
- *       remaining half hour whenever that helps flatten the result.</li>
- *   <li>Work that cannot fit anywhere in its window is <em>not</em> discarded and not pushed
- *       into a later week. It is spread over the window's days as overflow, so the
- *       overallocation stays visible exactly where it was committed.</li>
- * </ul>
- *
- * <p>The result is that an overallocation reported by the workload report is now a real one:
- * it means the work genuinely does not fit in the window it was promised in, not merely that
- * it was shared out badly.
- */
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.ToDoubleFunction;
+
+/** Levels effort within committed windows. A fractional max-flow check repairs avoidable overload. */
 public final class LevelledContour {
 
     /** Bisection steps for the water level. Converges far below a minute of precision. */
     private static final int LEVEL_ITERATIONS = 60;
 
     private final Map<String, NavigableMap<LocalDate, Double>> byTask;
+    private final Map<String, Double> unallocated = new HashMap<>();
+
+    public double unallocatedHours(GanttTask task) { return unallocated.getOrDefault(task.key(), 0.0); }
 
     private LevelledContour(Map<String, NavigableMap<LocalDate, Double>> byTask) {
         this.byTask = byTask;
     }
 
     /**
-     * Levels the full committed estimate of every task — what the team promised to deliver,
+     * Levels the full committed estimate of every task - what the team promised to deliver,
      * arranged the way it could actually be worked.
      */
     public static LevelledContour plan(List<GanttTask> tasks, Predicate<LocalDate> absent) {
@@ -182,7 +98,15 @@ public final class LevelledContour {
         for (Scheduled scheduled : ordered) {
             byTask.put(scheduled.task().key(), pour(scheduled, load));
         }
-        return new LevelledContour(byTask);
+        if (load.values().stream().anyMatch(hours -> hours > WorkContour.PRODUCTIVE_HOURS_PER_DAY + 0.000001)) {
+            byTask = CapacityAllocation.allocate(ordered.stream()
+                    .map(scheduled -> new CapacityAllocation.Demand(scheduled.task().key(), scheduled.days(), scheduled.work())).toList());
+        }
+        LevelledContour result = new LevelledContour(byTask);
+        for (Scheduled scheduled : ordered) {
+            if (scheduled.days().isEmpty() && scheduled.work() > 0) result.unallocated.put(scheduled.task().key(), scheduled.work());
+        }
+        return result;
     }
 
     /** Pours one task's hours into its window, lowest days first, updating the shared load. */

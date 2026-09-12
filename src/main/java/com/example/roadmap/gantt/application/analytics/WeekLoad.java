@@ -1,64 +1,12 @@
 package com.example.roadmap.gantt.application.analytics;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import java.time.LocalDate;
+import java.util.List;
+
 /**
  * One week of load for one person or one role, in effort hours.
  *
- * <p>This is the cell of the "Carga del equipo" grid — Microsoft Project's Resource Usage
+ * <p>This is the cell of the "Carga del equipo" grid - Microsoft Project's Resource Usage
  * view. Hours, not MD, because hours are what a week of capacity is naturally measured in
  * (five available days give {@code 5 × 6 = 30} productive hours) and what makes an
  * overallocation legible at a glance.
@@ -67,11 +15,11 @@ import java.util.stream.*;
  * <p>A week that is already half spent has to answer two different questions, so this record
  * carries both and never mixes them:
  * <ul>
- *   <li><strong>The whole week</strong> — {@code assignedHours}, {@code capacityHours} and
+ *   <li><strong>The whole week</strong> - {@code assignedHours}, {@code capacityHours} and
  *       {@code utilizationPct} always describe Monday to Sunday. That is what keeps the
  *       percentage of the current week comparable with the weeks after it: shrinking the
  *       denominator as the week burns down would make every Friday look like a crisis.</li>
- *   <li><strong>What is left of it</strong> — the {@code remaining*} components count only
+ *   <li><strong>What is left of it</strong> - the {@code remaining*} components count only
  *       from today onwards, and measure the work Jira says is still owed rather than the
  *       slice of the plan that happens to land there. Every figure that claims free capacity
  *       is built on these, because Monday's unused hours are gone and cannot be sold to
@@ -107,7 +55,7 @@ public record WeekLoad(
 
     /**
      * Hours that can still be committed, counted only from today onwards. Zero once the week
-     * is overbooked — and also zero for a week that is already over, which is the point.
+     * is overbooked - and also zero for a week that is already over, which is the point.
      */
     public double freeHours() {
         return Math.max(0, remainingCapacityHours - remainingAssignedHours);

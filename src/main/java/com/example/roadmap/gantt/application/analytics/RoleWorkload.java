@@ -1,66 +1,16 @@
 package com.example.roadmap.gantt.application.analytics;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.function.ToDoubleFunction;
+
 /**
  * One role's aggregated workload: the group header of the "Carga del equipo" grid.
  *
  * <p>A role total is deliberately only a summary of its people. Overallocation is always
- * detected per person first — a role sitting at 80% can still hide someone at 160% next to
- * someone at 40% — so {@link #overallocatedPeopleInWeek(int)} exists to surface that inside
+ * detected per person first - a role sitting at 80% can still hide someone at 160% next to
+ * someone at 40% - so {@link #overallocatedPeopleInWeek(int)} exists to surface that inside
  * an otherwise healthy-looking row.
  *
  * @param roleLabel  role bucket label, e.g. {@code "Backend"}
@@ -94,7 +44,7 @@ public record RoleWorkload(
      * filter applied, a stored total would keep describing people the user has filtered out.
      *
      * <p>Capacity, remaining capacity and remaining work all add up plainly. Remaining days do
-     * not — they are a calendar fact rather than a quantity — so the row takes the longest
+     * not - they are a calendar fact rather than a quantity - so the row takes the longest
      * view any of its members has of the week.
      */
     public static List<WeekLoad> aggregate(List<PersonWorkload> people, List<LocalDate> weekStarts) {

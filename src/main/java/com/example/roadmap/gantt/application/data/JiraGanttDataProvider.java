@@ -1,60 +1,26 @@
 package com.example.roadmap.gantt.application.data;
-import com.example.roadmap.config.*;
-import com.example.roadmap.jira.*;
-import com.example.roadmap.jira.dto.*;
-import com.example.roadmap.gantt.application.analytics.*;
-import com.example.roadmap.gantt.application.data.*;
-import com.example.roadmap.gantt.application.dto.*;
-import com.example.roadmap.gantt.application.model.*;
-import com.example.roadmap.gantt.application.usecase.*;
-import com.example.roadmap.gantt.ui.*;
-import com.example.roadmap.gantt.ui.style.*;
-import com.example.roadmap.gantt.ui.widget.*;
-import com.example.roadmap.ui.*;
 
-import com.fasterxml.jackson.annotation.*;
-import com.vaadin.flow.component.*;
-import com.vaadin.flow.component.applayout.*;
-import com.vaadin.flow.component.button.*;
-import com.vaadin.flow.component.checkbox.*;
-import com.vaadin.flow.component.combobox.*;
-import com.vaadin.flow.component.datepicker.*;
-import com.vaadin.flow.component.dependency.*;
-import com.vaadin.flow.component.dialog.*;
-import com.vaadin.flow.component.grid.*;
-import com.vaadin.flow.component.html.*;
-import com.vaadin.flow.component.icon.*;
-import com.vaadin.flow.component.notification.*;
-import com.vaadin.flow.component.orderedlayout.*;
-import com.vaadin.flow.component.select.*;
-import com.vaadin.flow.component.sidenav.*;
-import com.vaadin.flow.component.textfield.*;
-import com.vaadin.flow.router.*;
-import com.vaadin.flow.server.*;
-import com.vaadin.flow.component.page.*;
-import com.vaadin.flow.component.details.*;
-import com.vaadin.flow.data.binder.*;
-import com.vaadin.flow.data.renderer.*;
-import com.vaadin.flow.theme.*;
-import org.springframework.boot.context.properties.*;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-import org.springframework.http.client.*;
-import org.springframework.jdbc.core.*;
-import org.springframework.stereotype.Repository;
-import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.*;
-import org.springframework.web.client.*;
-import java.net.*;
-import java.net.http.*;
-import java.nio.charset.*;
-import java.sql.*;
-import java.time.*;
-import java.time.format.*;
-import java.time.temporal.*;
-import java.util.*;
-import java.util.function.*;
-import java.util.stream.*;
+import com.example.roadmap.config.JiraProperties;
+import com.example.roadmap.gantt.application.analytics.UnplannedTask;
+import com.example.roadmap.gantt.application.model.GanttTask;
+import com.example.roadmap.gantt.application.model.GanttTeamRoster;
+import com.example.roadmap.gantt.application.model.Milestone;
+import com.example.roadmap.gantt.application.model.StartDateSource;
+import com.example.roadmap.gantt.application.model.TeamAbsence;
+import com.example.roadmap.gantt.application.model.TeamMember;
+import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.dto.JiraIssueDto;
+import com.vaadin.flow.component.Component;
+import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
+
 /**
  * Loads the AR1 Gantt straight from Jira: one task per open issue assigned to a member of
  * {@link GanttTeamRoster}, plus the project's open milestones.
@@ -127,34 +93,49 @@ public class JiraGanttDataProvider implements GanttDataProvider {
     }
 
     /** {@code true} for weekends and any stored absence of {@code username}. */
-    private Predicate<LocalDate> blockedDaysFor(String username) {
-        return date -> absenceRepository.isAbsent(username, date);
-    }
+    private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(JiraGanttDataProvider.class);
 
     @Override
     public List<GanttTask> tasks() {
+        return loadTasks(absenceRepository.findAll()).tasks();
+    }
+
+    @Override
+    public RoadmapSnapshot snapshot(List<TeamAbsence> absences) {
+        RoadmapSnapshot loaded = loadTasks(absences);
+        return new RoadmapSnapshot(loaded.tasks(), milestones(), absences, loaded.undatedTasks());
+    }
+
+    private RoadmapSnapshot loadTasks(List<TeamAbsence> absences) {
         List<JiraIssueDto> issues = jiraApiClient
                 .searchOpenIssuesByAssignees(jiraProperties.project(), GanttTeamRoster.usernames())
                 .issues();
         if (issues == null || issues.isEmpty()) {
-            return List.of();
+            return new RoadmapSnapshot(List.of(), List.of(), absences, List.of());
         }
 
         Map<String, TargetStartRepository.Schedule> schedules = targetStartRepository.findSchedules();
         EpicIndex epics = EpicIndex.of(issues);
         List<GanttTask> result = new ArrayList<>();
+        List<UnplannedTask> undated = new ArrayList<>();
 
         for (JiraIssueDto issue : issues) {
             Draft draft = toDraft(issue, schedules);
             if (draft == null) {
                 continue;
             }
+            if (draft.actualStartDate == null) {
+                undated.add(new UnplannedTask(draft.key, draft.summary, draft.issueType,
+                        draft.member.name(), draft.member.role().label(), draft.member.role().color(),
+                        draft.status, null, null, draft.md, draft.mdEstimated, null));
+                continue;
+            }
             draft.epicKey = epics.resolve(issue.key());
-            Predicate<LocalDate> blocked = blockedDaysFor(draft.member.username());
+            Predicate<LocalDate> blocked = RoadmapSnapshot.calendar(absences, draft.member.username());
             result.add(draft.toTask(draft.actualStartDate, draft.actualStartDate, draft.actualSource, blocked));
         }
 
-        return result;
+        return new RoadmapSnapshot(result, List.of(), absences, undated);
     }
 
     /**
@@ -163,8 +144,8 @@ public class JiraGanttDataProvider implements GanttDataProvider {
      * index walks that chain across the whole fetched page so both hops can be made without
      * extra requests.
      *
-     * <p>An issue whose parent was not fetched — because it is assigned outside the team or
-     * already closed — simply has no reachable epic. That is expected rather than an error,
+     * <p>An issue whose parent was not fetched - because it is assigned outside the team or
+     * already closed - simply has no reachable epic. That is expected rather than an error,
      * and those tasks are painted with {@code EpicPalette.UNASSIGNED}.
      */
     private record EpicIndex(Map<String, String> epicLinkByKey, Map<String, String> parentByKey,
@@ -264,9 +245,6 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         draft.schedule = schedules.get(draft.key);
 
         resolveActualStart(draft, fields);
-        if (draft.actualStartDate == null) {
-            return null;
-        }
         resolveEffort(draft, fields);
         return draft;
     }
@@ -310,7 +288,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         LocalDate scheduledStart = draft.schedule == null ? null : draft.schedule.startDate();
         if (scheduledStart != null) {
             draft.actualStartDate = scheduledStart;
-            draft.actualSource = StartDateSource.TARGET_START;
+            draft.actualSource = StartDateSource.LOCAL_PLAN;
             draft.committedEndDate = draft.schedule.endDate();
             return;
         }
@@ -337,7 +315,8 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         }
         try {
             double value = Double.parseDouble(raw.trim());
-            return Math.max(1, (int) Math.ceil(value));
+            return Double.isFinite(value) && value > 0 && value <= Integer.MAX_VALUE
+                    ? (int) Math.ceil(value) : -1;
         } catch (NumberFormatException e) {
             return -1;
         }
@@ -352,6 +331,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
             String datePart = raw.length() >= 10 ? raw.substring(0, 10) : raw;
             return LocalDate.parse(datePart, DateTimeFormatter.ISO_LOCAL_DATE);
         } catch (RuntimeException e) {
+            LOG.warn("Invalid Jira date format; value omitted");
             return null;
         }
     }
