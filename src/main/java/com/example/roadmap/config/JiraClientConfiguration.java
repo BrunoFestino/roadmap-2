@@ -2,7 +2,6 @@ package com.example.roadmap.config;
 
 import com.example.roadmap.jira.JiraClient;
 import com.example.roadmap.jira.JiraRestClient;
-import com.vaadin.flow.server.Version;
 import java.net.http.HttpClient;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
@@ -32,7 +31,7 @@ public class JiraClientConfiguration {
     }
 
     @Bean
-    JiraClient jiraClient(RestClient jiraRestClient) {
-        return new JiraRestClient(jiraRestClient);
+    JiraClient jiraClient(RestClient jiraRestClient, JiraProperties properties) {
+        return new JiraRestClient(jiraRestClient, properties);
     }
 }

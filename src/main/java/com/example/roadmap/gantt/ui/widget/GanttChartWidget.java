@@ -330,6 +330,8 @@ public class GanttChartWidget extends Div {
                 + "\nCarga y disponibilidad: consultar el desglose semanal"
                 + "\nAssignee: " + placed.task().assignee().name()
                 + "\nRole: " + placed.task().assignee().role().label()
+                + "\nStack efectivo: " + placed.task().stack().label()
+                + "\nFuente del stack: " + placed.task().stackSource().label()
                 + "\nÉpica: " + (placed.task().missingEpic()
                 ? EpicPalette.UNASSIGNED_LABEL
                 : placed.task().effectiveEpicKey())

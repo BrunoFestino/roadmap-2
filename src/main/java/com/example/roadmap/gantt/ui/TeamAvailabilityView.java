@@ -47,6 +47,7 @@ public class TeamAvailabilityView extends VerticalLayout {
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
 
     private final transient TeamAbsenceRepository repository;
+    private final transient GanttTeamRoster teamRoster;
 
     private final Grid<TeamAbsence> grid = new Grid<>();
     private final ComboBox<TeamMember> memberField = new ComboBox<>("Persona");
@@ -61,8 +62,9 @@ public class TeamAvailabilityView extends VerticalLayout {
     private String editingId;
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(TeamAvailabilityView.class);
 
-    public TeamAvailabilityView(TeamAbsenceRepository repository) {
+    public TeamAvailabilityView(TeamAbsenceRepository repository, GanttTeamRoster teamRoster) {
         this.repository = repository;
+        this.teamRoster = teamRoster;
         DateFields.configure(startField);
         DateFields.configure(endField);
 
@@ -99,7 +101,7 @@ public class TeamAvailabilityView extends VerticalLayout {
     // ── form ─────────────────────────────────────────────────────────────────────
 
     private Component buildForm() {
-        memberField.setItems(GanttTeamRoster.members());
+        memberField.setItems(teamRoster.members());
         memberField.setItemLabelGenerator(TeamMember::name);
         memberField.setRequiredIndicatorVisible(true);
 
@@ -189,7 +191,7 @@ public class TeamAvailabilityView extends VerticalLayout {
     private void editRow(TeamAbsence absence) {
         editingId = absence.id();
         FormValues values = new FormValues();
-        values.member = GanttTeamRoster.byUsername(absence.username());
+        values.member = teamRoster.byUsername(absence.username());
         values.type = absence.type();
         values.startDate = absence.startDate();
         values.endDate = absence.endDate();
@@ -247,7 +249,7 @@ public class TeamAvailabilityView extends VerticalLayout {
     }
 
     private String memberName(String username) {
-        TeamMember member = GanttTeamRoster.byUsername(username);
+        TeamMember member = teamRoster.byUsername(username);
         return member != null ? member.name() : username;
     }
 

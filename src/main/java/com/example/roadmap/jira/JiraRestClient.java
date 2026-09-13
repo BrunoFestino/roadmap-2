@@ -1,5 +1,6 @@
 package com.example.roadmap.jira;
 
+import com.example.roadmap.config.JiraProperties;
 import com.example.roadmap.jira.dto.JiraIssueDto;
 import com.example.roadmap.jira.dto.JiraSearchResponseDto;
 import java.util.ArrayList;
@@ -12,14 +13,12 @@ public class JiraRestClient implements JiraClient {
     private static final int PAGE_SIZE = 100;
     private static final String OPEN_STATUSES =
             "status NOT IN (\"Done\", \"Cancelled\", \"Resolved\", \"Closed\", \"Obsolete\")";
-    private static final String ROADMAP_FIELDS =
-            "summary,status,issuetype,parent,assignee,duedate,timetracking,"
-                    + "customfield_14230,customfield_12832,customfield_13034,customfield_10830";
-
     private final RestClient restClient;
+    private final JiraProperties properties;
 
-    public JiraRestClient(RestClient jiraRestClient) {
+    public JiraRestClient(RestClient jiraRestClient, JiraProperties properties) {
         this.restClient = jiraRestClient;
+        this.properties = properties;
     }
 
     @Override
@@ -34,7 +33,7 @@ public class JiraRestClient implements JiraClient {
                 + " AND (issuetype IN (\"User Story\", Task, \"Test Plan\", Bug, Spike, \"L3 Problem\")"
                 + " OR issuetype IN subTaskIssueTypes() OR issuetype = Epic)"
                 + " ORDER BY key ASC";
-        return searchAllPages(jql, ROADMAP_FIELDS);
+        return searchAllPages(jql, roadmapFields());
     }
 
     @Override
@@ -83,5 +82,11 @@ public class JiraRestClient implements JiraClient {
                 .filter(name -> !name.isEmpty())
                 .distinct()
                 .toList();
+    }
+
+    private String roadmapFields() {
+        return String.join(",", "summary", "status", "issuetype", "parent", "assignee", "duedate",
+                "timetracking", "labels", properties.fieldEffortEstimate(), properties.fieldEpicLink(),
+                properties.fieldTargetStart(), properties.fieldFirstTimeInProgress());
     }
 }

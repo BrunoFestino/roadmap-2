@@ -16,7 +16,9 @@ import static org.mockito.Mockito.*;
 
 class WorkloadRegressionTest {
     static final LocalDate FRIDAY = LocalDate.of(2026, 9, 11);
-    static final TeamMember PERSON = GanttTeamRoster.members().getFirst();
+    static final GanttTeamRoster ROSTER = GanttTeamRoster.defaults();
+    static final TaskStackResolver STACK_RESOLVER = TaskStackResolver.defaults();
+    static final TeamMember PERSON = ROSTER.members().getFirst();
     static final JiraProperties PROPS = new JiraProperties("http://localhost", "test", "TTAR", null, null);
 
     static GanttTask task(String key, String start, String end, int md, long logged) {
@@ -26,7 +28,7 @@ class WorkloadRegressionTest {
     }
 
     static WorkloadReport report(List<GanttTask> tasks, List<TeamAbsence> absences, LocalDate asOf) {
-        return new BuildWorkloadReportUseCase(null, null, PROPS)
+        return new BuildWorkloadReportUseCase(null, null, PROPS, ROSTER)
                 .build(new RoadmapSnapshot(tasks, List.of(), absences, List.of()), asOf);
     }
 
@@ -115,11 +117,11 @@ class WorkloadRegressionTest {
         when(schedules.findSchedules()).thenReturn(Map.of());
         when(jira.searchOpenIssuesByAssignees(anyString(), anyList())).thenReturn(new JiraSearchResponseDto(List.of(issue("NO-DATE", null, "0"), issue("DATED", "2026-09-14", "-2"))));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
-        var provider = new JiraGanttDataProvider(jira, PROPS, absences, schedules);
-        var useCase = new BuildWorkloadReportUseCase(provider, absences, PROPS);
+        var provider = new JiraGanttDataProvider(jira, PROPS, absences, schedules, ROSTER, STACK_RESOLVER);
+        var useCase = new BuildWorkloadReportUseCase(provider, absences, PROPS, ROSTER);
         var snapshot = useCase.loadSnapshot();
         new BuildRoleGanttUseCase(provider).build(snapshot.tasks(), snapshot.milestones());
-        new BuildPersonGanttUseCase(provider).build(snapshot.tasks(), snapshot.milestones());
+        new BuildPersonGanttUseCase(provider, ROSTER).build(snapshot.tasks(), snapshot.milestones());
         var result = useCase.build(snapshot, FRIDAY);
         assertThat(result.unplannedTasks()).extracting(UnplannedTask::taskKey).contains("NO-DATE", "DATED");
         assertThat(snapshot.tasks()).singleElement().satisfies(t -> {
@@ -142,6 +144,17 @@ class WorkloadRegressionTest {
     static JiraIssueDto issue(String key, String start, String effort) {
         return new JiraIssueDto(key, new JiraIssueDto.Fields(key, new JiraIssueDto.IssueType("Task"), null,
                 new JiraIssueDto.User(PERSON.name(), PERSON.username(), null), new JiraIssueDto.Status("Open"),
-                null, null, null, effort, null, start, null));
+                null, null, null, List.of(), customFields(effort, start)));
+    }
+
+    static Map<String, Object> customFields(String effort, String targetStart) {
+        Map<String, Object> fields = new java.util.LinkedHashMap<>();
+        if (effort != null) {
+            fields.put(JiraProperties.DEFAULT_FIELD_EFFORT_ESTIMATE, effort);
+        }
+        if (targetStart != null) {
+            fields.put(JiraProperties.DEFAULT_FIELD_TARGET_START, targetStart);
+        }
+        return fields;
     }
 }

@@ -49,6 +49,8 @@ import java.util.function.Predicate;
  * @param epicKey           key of the epic this work serves, resolved through the issue's own
  *                          Epic Link or its parent's; {@code null} when it could not be
  *                          reached, which paints the task in {@link EpicPalette#UNASSIGNED}
+ * @param stack             effective stack used to place the task in the role/stack roadmap
+ * @param stackSource       source that supplied the effective stack
  */
 public record GanttTask(
         String key,
@@ -64,10 +66,18 @@ public record GanttTask(
         LocalDate plannedEndDate,
         boolean hasCalendarWindow,
         String epicKey,
-        long loggedSeconds) {
+        long loggedSeconds,
+        TaskStack stack,
+        TaskStackSource stackSource) {
 
     public GanttTask {
         md = Math.max(1, md);
+        if (stack == null) {
+            stack = TaskStack.UNCLASSIFIED;
+            stackSource = TaskStackSource.NONE;
+        } else if (stackSource == null) {
+            stackSource = TaskStackSource.NONE;
+        }
     }
 
     /**
@@ -78,7 +88,8 @@ public record GanttTask(
                                    LocalDate actualStartDate, LocalDate plannedStartDate, StartDateSource startDateSource,
                                    int md, boolean mdEstimated, String status, Predicate<LocalDate> extraBlockedDays) {
         return create(key, summary, issueType, assignee, actualStartDate, plannedStartDate, startDateSource,
-                md, mdEstimated, status, null, extraBlockedDays, null, 0L);
+                md, mdEstimated, status, null, extraBlockedDays, null, 0L,
+                assignee.role().stack(), TaskStackSource.PERSON_ROLE);
     }
 
     /**
@@ -90,13 +101,25 @@ public record GanttTask(
                                    LocalDate actualStartDate, LocalDate plannedStartDate, StartDateSource startDateSource,
                                    int md, boolean mdEstimated, String status, LocalDate committedEndDate,
                                    Predicate<LocalDate> extraBlockedDays, String epicKey, long loggedSeconds) {
+        return create(key, summary, issueType, assignee, actualStartDate, plannedStartDate, startDateSource,
+                md, mdEstimated, status, committedEndDate, extraBlockedDays, epicKey, loggedSeconds,
+                assignee.role().stack(), TaskStackSource.PERSON_ROLE);
+    }
+
+    /** Builds a task with an explicitly resolved effective stack and its source. */
+    public static GanttTask create(String key, String summary, String issueType, TeamMember assignee,
+                                   LocalDate actualStartDate, LocalDate plannedStartDate, StartDateSource startDateSource,
+                                   int md, boolean mdEstimated, String status, LocalDate committedEndDate,
+                                   Predicate<LocalDate> extraBlockedDays, String epicKey, long loggedSeconds,
+                                   TaskStack stack, TaskStackSource stackSource) {
         LocalDate displayStart = actualStartDate != null ? actualStartDate : plannedStartDate;
         boolean committed = committedEndDate != null && !committedEndDate.isBefore(displayStart);
         LocalDate endDate = committed
                 ? committedEndDate
                 : WorkingDays.endFrom(displayStart, md, extraBlockedDays);
         return new GanttTask(key, summary, issueType, assignee, actualStartDate, plannedStartDate,
-                startDateSource, md, mdEstimated, status, endDate, committed, epicKey, loggedSeconds);
+                startDateSource, md, mdEstimated, status, endDate, committed, epicKey, loggedSeconds,
+                stack, stackSource);
     }
 
     /** The date actually rendered on the roadmap: the real Jira date when there is one. */

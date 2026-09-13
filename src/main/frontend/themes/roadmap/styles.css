@@ -328,6 +328,83 @@ vaadin-app-layout::part(drawer) {
     margin-left: 4px;
 }
 
+.roadmap-section-navigation {
+    align-items: center;
+    align-self: stretch;
+    backdrop-filter: blur(10px);
+    background: rgba(255, 255, 255, 0.96);
+    border: 1px solid var(--app-border);
+    border-radius: 9px;
+    box-shadow: 0 4px 14px rgba(15, 70, 96, 0.08);
+    display: flex;
+    gap: 10px;
+    margin: 0 0 14px;
+    min-width: 0;
+    padding: 7px 9px;
+    position: sticky;
+    top: 0;
+    width: 100%;
+    z-index: 10;
+}
+
+.roadmap-section-navigation-label {
+    color: var(--app-muted);
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0 4px;
+    text-transform: uppercase;
+}
+
+.roadmap-section-navigation-links {
+    display: flex;
+    flex: 1 1 auto;
+    gap: 4px;
+    min-width: 0;
+    overflow-x: auto;
+    scrollbar-color: #c2d0d6 transparent;
+    scrollbar-width: thin;
+}
+
+.roadmap-section-navigation-link {
+    border-radius: 6px;
+    color: #52636b;
+    flex: 0 0 auto;
+    font-size: 12px;
+    font-weight: 650;
+    padding: 7px 10px;
+    text-decoration: none;
+    transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+    white-space: nowrap;
+}
+
+.roadmap-section-navigation-link:hover {
+    background: #edf5f8;
+    color: var(--lumo-primary-text-color);
+}
+
+.roadmap-section-navigation-link:focus-visible {
+    outline: 2px solid #68a9c5;
+    outline-offset: 1px;
+}
+
+.roadmap-section-navigation-link[active] {
+    background: #dfeefa;
+    box-shadow: inset 0 -2px 0 var(--lumo-primary-color);
+    color: #075b86;
+    font-weight: 750;
+}
+
+#roadmap-load,
+#roadmap-histogram,
+#roadmap-availability,
+#roadmap-by-role,
+#roadmap-by-person,
+#roadmap-unplanned {
+    scroll-margin-top: 118px;
+}
+
 .roadmap-section {
     padding: 18px !important;
 }
@@ -399,6 +476,20 @@ vaadin-notification-card::part(overlay) {
     .page-toolbar {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .roadmap-section-navigation {
+        gap: 4px;
+        margin-bottom: 12px;
+        padding: 6px;
+    }
+
+    .roadmap-section-navigation-label {
+        display: none;
+    }
+
+    .roadmap-section-navigation-link {
+        padding: 7px 9px;
     }
 
     .surface-card,

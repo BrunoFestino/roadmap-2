@@ -30,16 +30,36 @@ async function run() {
     const input = page.locator('vaadin-date-picker').nth(index).locator('input').first();
     await input.fill(value); await input.press('Enter'); await page.keyboard.press('Escape'); await idle();
   };
+  const localStack = () => page.getByRole('combobox', {name: 'Stack local', exact: true});
+  const selectLocalStack = async value => {
+    await localStack().click();
+    await page.getByRole('option', {name: value, exact: true}).click();
+    await idle();
+  };
+  const scrollPlanningGridTo = async index => {
+    await page.locator('vaadin-grid').evaluate((grid, itemIndex) => grid.scrollToIndex(itemIndex), index);
+    await page.waitForTimeout(250);
+    await idle();
+  };
   try {
     await fault('none');
+    await openPlanning();
     const initialPlan = (await state()).plans.find(p => p.issue_key === 'TTAR-TEST');
+    assert.equal(await page.getByRole('textbox', {name: 'Label Jira', exact: true}).inputValue(), 'Sin label de stack');
+    assert.equal(await page.getByRole('textbox', {name: 'Fallback por persona', exact: true}).inputValue(), 'Bruno Festino · Mobile');
+    if (await localStack().inputValue()) {
+      await page.locator('vaadin-combo-box').first().locator('[part="clear-button"]').click();
+      await idle();
+    }
+    await bodyHas('Stack efectivo: Mobile · fuente: Rol de la persona');
     if (initialPlan.start_date !== '2026-09-11' || initialPlan.end_date !== '2026-09-14') {
-      await openPlanning();
       await enterDate(0, '11/09/2026');
       await enterDate(1, '14/09/2026');
-      await page.getByRole('button', {name: 'Guardar fechas', exact: true}).click();
-      await bodyHas('Fechas guardadas para TTAR-TEST');
     }
+    await selectLocalStack('Front');
+    await bodyHas('Stack efectivo: Front · fuente: Planificación local');
+    await page.getByRole('button', {name: 'Guardar planificación', exact: true}).click();
+    await bodyHas('Planificación guardada para TTAR-TEST');
     await page.goto(base);
     await bodyHas('Carga del equipo');
     await bodyHas('TTAR-NODATE');
@@ -50,13 +70,47 @@ async function run() {
       warnings: [...document.querySelectorAll('span')].filter(e => e.textContent.includes('h pendientes ·')).map(e => e.textContent)
     }));
     assert.equal(evidence.bars.length, 2);
-    for (const bar of evidence.bars) { assert.equal(bar.width, 64); assert.match(bar.tooltip, /Planificación local/); assert.doesNotMatch(bar.tooltip, /Dedication:/); }
+    for (const bar of evidence.bars) {
+      assert.equal(bar.width, 64);
+      assert.match(bar.tooltip, /Planificación local/);
+      assert.match(bar.tooltip, /Stack efectivo: Front/);
+      assert.match(bar.tooltip, /Fuente del stack: Planificación local/);
+      assert.doesNotMatch(bar.tooltip, /Dedication:/);
+    }
     assert.ok(evidence.headers.length >= 8);
     assert.deepEqual(evidence.warnings, []);
     assert.equal(await page.getByText('Trabajo que requiere revisión', {exact: false}).count(), 0);
     check('Gantt, semanas y origen local; sin bloque de advertencias', evidence);
     await shot('after-roadmap');
-    await page.locator('h2').filter({hasText: 'Por persona'}).scrollIntoViewIfNeeded();
+    const sectionNavigation = page.locator('.roadmap-section-navigation');
+    assert.equal(await sectionNavigation.locator('[data-section-target]').count(), 6);
+    await sectionNavigation.locator('[data-section-target="roadmap-by-person"]').click();
+    await page.waitForFunction(() => {
+      const navigation = document.querySelector('.roadmap-section-navigation');
+      const target = document.getElementById('roadmap-by-person');
+      const link = document.querySelector('[data-section-target="roadmap-by-person"]');
+      if (!navigation || !target || !link || location.hash !== '#roadmap-by-person') return false;
+      const navigationRect = navigation.getBoundingClientRect();
+      const targetRect = target.getBoundingClientRect();
+      return navigationRect.top >= 57 && navigationRect.top <= 70
+        && targetRect.top > navigationRect.bottom && targetRect.top <= navigationRect.bottom + 96
+        && link.hasAttribute('active');
+    });
+    const navigationEvidence = await page.evaluate(() => {
+      const navigation = document.querySelector('.roadmap-section-navigation').getBoundingClientRect();
+      const target = document.getElementById('roadmap-by-person').getBoundingClientRect();
+      return {
+        active: document.querySelector('.roadmap-section-navigation-link[active]')?.textContent,
+        navigationTop: navigation.top,
+        navigationBottom: navigation.bottom,
+        targetTop: target.top,
+        hash: location.hash
+      };
+    });
+    assert.equal(navigationEvidence.active, 'Por persona');
+    assert.ok(navigationEvidence.navigationTop >= 57 && navigationEvidence.navigationTop <= 70);
+    assert.ok(navigationEvidence.targetTop > navigationEvidence.navigationBottom);
+    check('Índice sticky: salto, hash y sección activa', navigationEvidence);
     await shot('after-gantt');
     await page.setViewportSize({width: 1100, height: 900});
     await page.evaluate(() => scrollTo(0, 0));
@@ -67,10 +121,11 @@ async function run() {
 
     await openPlanning();
     assert.deepEqual(await dates(), ['2026-09-11', '2026-09-14']);
+    assert.equal(await localStack().inputValue(), 'Front');
     const formats = await page.locator('vaadin-date-picker').evaluateAll(es => es.map(e => e.querySelector('input')?.value));
     assert.deepEqual(formats, ['11/09/2026', '14/09/2026']);
     await fault('schedule-save');
-    await page.getByRole('button', {name: 'Guardar fechas', exact: true}).click();
+    await page.getByRole('button', {name: 'Guardar planificación', exact: true}).click();
     await bodyHas('No se guardaron las fechas de TTAR-TEST');
     assert.deepEqual(await dates(), ['2026-09-11', '2026-09-14']);
     await shot('after-save-error');
@@ -78,7 +133,7 @@ async function run() {
 
     await enterDate(0, '12/09/2026');
     await enterDate(1, '13/09/2026');
-    await page.getByRole('button', {name: 'Guardar fechas', exact: true}).click();
+    await page.getByRole('button', {name: 'Guardar planificación', exact: true}).click();
     await bodyHas('La ventana no tiene días disponibles');
     assert.equal((await state()).plans.find(p => p.issue_key === 'TTAR-TEST').start_date, '2026-09-11');
     await shot('after-weekend-validation');
@@ -86,21 +141,23 @@ async function run() {
 
     await enterDate(0, '09/10/2026');
     await enterDate(1, '12/10/2026');
-    await page.getByRole('button', {name: 'Guardar fechas', exact: true}).click();
-    await bodyHas('Fechas guardadas para TTAR-TEST');
+    await page.getByRole('button', {name: 'Guardar planificación', exact: true}).click();
+    await bodyHas('Planificación guardada para TTAR-TEST');
     let saved = (await state()).plans.find(p => p.issue_key === 'TTAR-TEST');
     assert.equal(saved.start_date, '2026-10-09');
     assert.equal(saved.end_date, '2026-10-12');
+    assert.equal(saved.stack_local, 'FRONTEND');
     await page.reload();
     await page.getByText('TTAR-TEST', {exact: true}).click();
     assert.deepEqual(await dates(), ['2026-10-09', '2026-10-12']);
+    assert.equal(await localStack().inputValue(), 'Front');
     await shot('after-save-success');
     check('Entrada manual dd/MM/yyyy, guardado real y recarga', saved);
 
     await fault('reload-after-save');
     await enterDate(1, '13/10/2026');
-    await page.getByRole('button', {name: 'Guardar fechas', exact: true}).click();
-    await bodyHas('se guardaron, pero falló la recarga');
+    await page.getByRole('button', {name: 'Guardar planificación', exact: true}).click();
+    await bodyHas('se guardó, pero falló la recarga');
     assert.equal((await state()).plans.find(p => p.issue_key === 'TTAR-TEST').end_date, '2026-10-13');
     await shot('after-reload-error');
     await page.getByRole('button', {name: 'Actualizar tareas', exact: true}).click();
@@ -110,8 +167,22 @@ async function run() {
     assert.deepEqual(await dates(), ['2026-10-09', '2026-10-13']);
     check('Distingue guardado exitoso de recarga fallida y permite reintentar');
 
+    await page.getByText('TTAR-2104', {exact: true}).click();
+    assert.equal(await localStack().inputValue(), 'Front');
+    await bodyHas('Stack efectivo: Front · fuente: Planificación local');
+    await scrollPlanningGridTo(14);
+    await page.getByText('TTAR-2105', {exact: true}).click();
+    await bodyHas('Stack efectivo: Mobile · fuente: Label Jira');
+    await scrollPlanningGridTo(24);
+    await page.getByText('TTAR-2107', {exact: true}).click();
+    await bodyHas('Stack efectivo: Stack ambiguo · fuente: Label Jira');
+    assert.equal(await page.locator('.effective-stack-preview').evaluate(element => getComputedStyle(element).color), 'rgb(179, 38, 30)');
+    await shot('after-stack-scenarios');
+    check('Stack: local sobre Jira, Jira sobre rol y labels ambiguos visibles');
+
     await page.goto(base + '/gantt/availability');
     await bodyHas('Ausencias del equipo (AR1)');
+    const baselineAbsenceCount = (await state()).absences.length;
     await page.locator('vaadin-combo-box').first().click();
     await page.getByRole('option', {name: 'Bruno Festino', exact: true}).click();
     await page.locator('vaadin-combo-box').nth(1).click();
@@ -125,16 +196,16 @@ async function run() {
     assert.deepEqual(await dates(), ['2026-09-14', '2026-09-15']);
     await page.getByRole('button', {name: 'Agregar', exact: true}).click();
     await bodyHas('Ausencia agregada');
-    assert.equal((await state()).absences.length, 1);
+    assert.equal((await state()).absences.length, baselineAbsenceCount + 1);
     await shot('after-absence-success');
     await fault('absence-delete');
-    await page.getByRole('button', {name: 'Eliminar', exact: true}).click();
+    await page.getByRole('button', {name: 'Eliminar', exact: true}).first().click();
     await bodyHas('No se eliminó la ausencia');
-    assert.equal((await state()).absences.length, 1);
+    assert.equal((await state()).absences.length, baselineAbsenceCount + 1);
     await shot('after-absence-delete-error');
-    await page.getByRole('button', {name: 'Eliminar', exact: true}).click();
+    await page.getByRole('button', {name: 'Eliminar', exact: true}).first().click();
     await bodyHas('Ausencia eliminada');
-    assert.equal((await state()).absences.length, 0);
+    assert.equal((await state()).absences.length, baselineAbsenceCount);
     await fault('absence-load');
     await page.getByRole('button', {name: 'Actualizar ausencias', exact: true}).click();
     await bodyHas('No se pudo actualizar la lista de ausencias');

@@ -1,0 +1,40 @@
+package com.example.roadmap.gantt.application.model;
+
+/**
+ * The technical stack used to place a task in the roadmap.
+ *
+ * <p>The first four values are selectable during local planning. The remaining values are
+ * derived states used when Jira is contradictory or no source can classify the task.
+ */
+public enum TaskStack {
+
+    FRONTEND("Front", "#2C8FB5", true),
+    BACKEND("BE", "#0F4660", true),
+    MOBILE("Mobile", "#2E7D32", true),
+    DEVOPS("DevOps", "#B36A00", true),
+    AMBIGUOUS("Stack ambiguo", "#B3261E", false),
+    UNCLASSIFIED("Sin stack", "#6B778C", false);
+
+    private final String label;
+    private final String color;
+    private final boolean selectable;
+
+    TaskStack(String label, String color, boolean selectable) {
+        this.label = label;
+        this.color = color;
+        this.selectable = selectable;
+    }
+
+    public String label() {
+        return label;
+    }
+
+    public String color() {
+        return color;
+    }
+
+    public boolean selectable() {
+        return selectable;
+    }
+
+}

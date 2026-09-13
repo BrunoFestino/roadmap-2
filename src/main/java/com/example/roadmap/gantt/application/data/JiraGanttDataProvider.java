@@ -8,6 +8,9 @@ import com.example.roadmap.gantt.application.model.Milestone;
 import com.example.roadmap.gantt.application.model.StartDateSource;
 import com.example.roadmap.gantt.application.model.TeamAbsence;
 import com.example.roadmap.gantt.application.model.TeamMember;
+import com.example.roadmap.gantt.application.model.TaskStack;
+import com.example.roadmap.gantt.application.model.TaskStackResolver;
+import com.example.roadmap.gantt.application.model.TaskStackSource;
 import com.example.roadmap.jira.JiraClient;
 import com.example.roadmap.jira.dto.JiraIssueDto;
 import com.vaadin.flow.component.Component;
@@ -30,12 +33,13 @@ import java.util.function.Predicate;
  * most to least authoritative, so the Gantt can always tell a real Jira date apart from one
  * it had to calculate itself:
  * <ol>
- *   <li>{@link StartDateSource#TARGET_START} - "Target start", read from
- *       {@link TargetStartRepository} (a manually maintained PostgreSQL schedule, since this field is not
- *       reachable through the Jira REST API for this project); the primary, most
- *       authoritative start date whenever the schedule has a row for the issue.</li>
- *   <li>{@link StartDateSource#FIRST_TIME_IN_PROGRESS} - {@code customfield_13034}
- *       ("First Time In Progress"), used only when the issue is currently In Progress.</li>
+ *   <li>{@link StartDateSource#LOCAL_PLAN} - the manually maintained PostgreSQL schedule;
+ *       the most authoritative start date whenever the schedule has a row for the issue.</li>
+ *   <li>{@link StartDateSource#TARGET_START} - the Jira field configured by
+ *       {@code ROADMAP_JIRA_FIELD_TARGET_START}.</li>
+ *   <li>{@link StartDateSource#FIRST_TIME_IN_PROGRESS} - the Jira field configured by
+ *       {@code ROADMAP_JIRA_FIELD_FIRST_TIME_IN_PROGRESS}, used only when the issue is
+ *       currently In Progress.</li>
  * </ol>
  * Issues without either source are excluded from the roadmap. The roadmap never invents a
  * schedule from sprint, creation date or task chaining.
@@ -51,8 +55,9 @@ import java.util.function.Predicate;
  * {@link GanttTask#missingCalendarWindow()} so the roadmap can list it for the team to date
  * properly instead of silently inflating its owner's load.
  *
- * <p><strong>Effort (MD)</strong> comes from the {@code customfield_14230} estimate field,
- * falling back to the schedule's {@code effortMd} and finally to 3 MD for a normal issue.
+ * <p><strong>Effort (MD)</strong> comes from the Jira field configured by
+ * {@code ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE}, falling back to the schedule's
+ * {@code effortMd} and finally to 3 MD for a normal issue.
  * Subtasks deliberately ignore any Jira estimate: they use the schedule's {@code effortMd}, or
  * 1 MD when it is absent. In either fallback case the task is flagged as estimated.
  *
@@ -83,13 +88,18 @@ public class JiraGanttDataProvider implements GanttDataProvider {
     private final JiraProperties jiraProperties;
     private final TeamAbsenceRepository absenceRepository;
     private final TargetStartRepository targetStartRepository;
+    private final GanttTeamRoster teamRoster;
+    private final TaskStackResolver taskStackResolver;
 
     public JiraGanttDataProvider(JiraClient jiraApiClient, JiraProperties jiraProperties,
-            TeamAbsenceRepository absenceRepository, TargetStartRepository targetStartRepository) {
+            TeamAbsenceRepository absenceRepository, TargetStartRepository targetStartRepository,
+            GanttTeamRoster teamRoster, TaskStackResolver taskStackResolver) {
         this.jiraApiClient = jiraApiClient;
         this.jiraProperties = jiraProperties;
         this.absenceRepository = absenceRepository;
         this.targetStartRepository = targetStartRepository;
+        this.teamRoster = teamRoster;
+        this.taskStackResolver = taskStackResolver;
     }
 
     /** {@code true} for weekends and any stored absence of {@code username}. */
@@ -108,14 +118,14 @@ public class JiraGanttDataProvider implements GanttDataProvider {
 
     private RoadmapSnapshot loadTasks(List<TeamAbsence> absences) {
         List<JiraIssueDto> issues = jiraApiClient
-                .searchOpenIssuesByAssignees(jiraProperties.project(), GanttTeamRoster.usernames())
+                .searchOpenIssuesByAssignees(jiraProperties.project(), teamRoster.usernames())
                 .issues();
         if (issues == null || issues.isEmpty()) {
             return new RoadmapSnapshot(List.of(), List.of(), absences, List.of());
         }
 
         Map<String, TargetStartRepository.Schedule> schedules = targetStartRepository.findSchedules();
-        EpicIndex epics = EpicIndex.of(issues);
+        EpicIndex epics = EpicIndex.of(issues, jiraProperties.fieldEpicLink());
         List<GanttTask> result = new ArrayList<>();
         List<UnplannedTask> undated = new ArrayList<>();
 
@@ -154,7 +164,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         /** Guards against a malformed parent cycle in Jira turning resolution into a hang. */
         private static final int MAX_HOPS = 4;
 
-        static EpicIndex of(List<JiraIssueDto> issues) {
+        static EpicIndex of(List<JiraIssueDto> issues, String epicLinkField) {
             Map<String, String> epicLinks = new HashMap<>();
             Map<String, String> parents = new HashMap<>();
             Set<String> epics = new HashSet<>();
@@ -167,8 +177,9 @@ public class JiraGanttDataProvider implements GanttDataProvider {
                 if (fields.issuetype() != null && "Epic".equalsIgnoreCase(fields.issuetype().name())) {
                     epics.add(issue.key());
                 }
-                if (fields.epicLinkKey() != null && !fields.epicLinkKey().isBlank()) {
-                    epicLinks.put(issue.key(), fields.epicLinkKey().trim());
+                String epicLink = fields.customField(epicLinkField);
+                if (epicLink != null && !epicLink.isBlank()) {
+                    epicLinks.put(issue.key(), epicLink.trim());
                 }
                 if (fields.parent() != null && fields.parent().key() != null) {
                     parents.put(issue.key(), fields.parent().key());
@@ -226,7 +237,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         if (fields == null || fields.assignee() == null) {
             return null;
         }
-        TeamMember member = GanttTeamRoster.byUsername(fields.assignee().name());
+        TeamMember member = teamRoster.byUsername(fields.assignee().name());
         if (member == null) {
             return null;
         }
@@ -243,6 +254,10 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         draft.issueType = fields.issuetype() == null || fields.issuetype().name() == null
                 ? "Task" : fields.issuetype().name();
         draft.schedule = schedules.get(draft.key);
+        TaskStackResolver.Resolution stackResolution = taskStackResolver.resolve(
+                draft.schedule == null ? null : draft.schedule.localStack(), fields.labels(), member.role());
+        draft.stack = stackResolution.stack();
+        draft.stackSource = stackResolution.source();
 
         resolveActualStart(draft, fields);
         resolveEffort(draft, fields);
@@ -266,7 +281,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
             return;
         }
 
-        int jiraMd = parseMd(fields.effortEstimateManDays());
+        int jiraMd = parseMd(fields.customField(jiraProperties.fieldEffortEstimate()));
         if (jiraMd > 0) {
             draft.md = jiraMd;
             draft.mdEstimated = false;
@@ -292,13 +307,14 @@ public class JiraGanttDataProvider implements GanttDataProvider {
             draft.committedEndDate = draft.schedule.endDate();
             return;
         }
-        LocalDate targetStart = parseDate(fields.targetStart());
+        LocalDate targetStart = parseDate(fields.customField(jiraProperties.fieldTargetStart()));
         if (targetStart != null) {
             draft.actualStartDate = targetStart;
             draft.actualSource = StartDateSource.TARGET_START;
             return;
         }
-        LocalDate firstInProgress = isInProgress(draft.status) ? parseDate(fields.firstTimeInProgress()) : null;
+        LocalDate firstInProgress = isInProgress(draft.status)
+                ? parseDate(fields.customField(jiraProperties.fieldFirstTimeInProgress())) : null;
         if (firstInProgress != null) {
             draft.actualStartDate = firstInProgress;
             draft.actualSource = StartDateSource.FIRST_TIME_IN_PROGRESS;
@@ -351,11 +367,14 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         LocalDate committedEndDate;
         String epicKey;
         long loggedSeconds;
+        TaskStack stack;
+        TaskStackSource stackSource;
 
         GanttTask toTask(LocalDate actualStartDate, LocalDate plannedStartDate, StartDateSource source,
                 Predicate<LocalDate> extraBlockedDays) {
             return GanttTask.create(key, summary, issueType, member, actualStartDate, plannedStartDate, source,
-                    md, mdEstimated, status, committedEndDate, extraBlockedDays, epicKey, loggedSeconds);
+                    md, mdEstimated, status, committedEndDate, extraBlockedDays, epicKey, loggedSeconds,
+                    stack, stackSource);
         }
     }
 }

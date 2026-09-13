@@ -13,13 +13,13 @@ public enum StartDateSource {
 
     LOCAL_PLAN("Planificación local (PostgreSQL)"),
 
-    /** {@code customfield_12832} "Target start", read directly off the issue. */
+    /** Configured "Target start" custom field, read directly off the issue. */
     TARGET_START("Target Start (Jira)"),
-    /** {@code customfield_15030} "Planned/Effective Start Date", read directly off the issue. */
+    /** Legacy "Planned/Effective Start Date" source, not used by the current provider. */
     JIRA_START_DATE("Start Date (Jira)"),
-    /** {@code customfield_13034} "First Time In Progress", read directly off the issue. */
+    /** Configured "First Time In Progress" custom field, read directly off the issue. */
     FIRST_TIME_IN_PROGRESS("Primera vez En Progreso (Jira)"),
-    /** Start date of the issue's Jira Agile sprint ({@code customfield_10730}). */
+    /** Legacy Jira Agile sprint source, not used by the current provider. */
     SPRINT_START("Inicio de sprint (Jira)"),
     /** Calculated by chaining this person's other undated tasks one after another. */
     CHAINED_PLANNED("Planificado por encadenamiento"),

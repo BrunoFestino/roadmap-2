@@ -87,12 +87,27 @@ public class RoadmapView extends VerticalLayout {
     private static final DateTimeFormatter AVAILABILITY_DATE =
             DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.forLanguageTag("es-AR"));
 
+    private static final String SECTION_LOAD = "roadmap-load";
+    private static final String SECTION_HISTOGRAM = "roadmap-histogram";
+    private static final String SECTION_AVAILABILITY = "roadmap-availability";
+    private static final String SECTION_BY_ROLE = "roadmap-by-role";
+    private static final String SECTION_BY_PERSON = "roadmap-by-person";
+    private static final String SECTION_UNPLANNED = "roadmap-unplanned";
+    private static final List<SectionDestination> SECTION_DESTINATIONS = List.of(
+            new SectionDestination(SECTION_LOAD, "Carga"),
+            new SectionDestination(SECTION_HISTOGRAM, "Histograma"),
+            new SectionDestination(SECTION_AVAILABILITY, "Libre desde"),
+            new SectionDestination(SECTION_BY_ROLE, "Por rol"),
+            new SectionDestination(SECTION_BY_PERSON, "Por persona"),
+            new SectionDestination(SECTION_UNPLANNED, "Sin fechas"));
+
     private final transient BuildRoleGanttUseCase buildRoleGantt;
     private final transient BuildPersonGanttUseCase buildPersonGantt;
     private final transient BuildWorkloadReportUseCase buildWorkloadReport;
 
     private final Span updatedAt = new Span();
     private final Div legend = new Div();
+    private final Div sectionNavigation = new Div();
     private final Div results = new Div();
     private final Div footnote = new Div();
 
@@ -115,8 +130,136 @@ public class RoadmapView extends VerticalLayout {
         HorizontalLayout toolbar = new HorizontalLayout(reload, updatedAt);
         toolbar.addClassName("page-toolbar");
         updatedAt.addClassName("updated-at");
-        add(title(), subtitle(), toolbar, legend, results, footnote);
+        configureSectionNavigation();
+        add(title(), subtitle(), toolbar, sectionNavigation, legend, results, footnote);
         render();
+    }
+
+    private void configureSectionNavigation() {
+        sectionNavigation.addClassName("roadmap-section-navigation");
+        sectionNavigation.getElement().setAttribute("role", "navigation");
+        sectionNavigation.getElement().setAttribute("aria-label", "Secciones del roadmap");
+
+        Span label = new Span("Ir a");
+        label.addClassName("roadmap-section-navigation-label");
+        Div links = new Div();
+        links.addClassName("roadmap-section-navigation-links");
+        for (SectionDestination destination : SECTION_DESTINATIONS) {
+            Anchor link = new Anchor("#" + destination.id(), destination.label());
+            link.addClassName("roadmap-section-navigation-link");
+            link.getElement().setAttribute("data-section-target", destination.id());
+            if (SECTION_LOAD.equals(destination.id())) {
+                link.getElement().setAttribute("active", true);
+                link.getElement().setAttribute("aria-current", "location");
+            }
+            links.add(link);
+        }
+        sectionNavigation.add(label, links);
+    }
+
+    private void installSectionNavigationBehavior() {
+        sectionNavigation.getElement().executeJs("""
+                const nav = this;
+                if (nav.__roadmapNavigationCleanup) {
+                    nav.__roadmapNavigationCleanup();
+                }
+
+                const links = [...nav.querySelectorAll('[data-section-target]')];
+                const sections = links
+                    .map(link => document.getElementById(link.dataset.sectionTarget))
+                    .filter(Boolean);
+                if (!sections.length) {
+                    return;
+                }
+
+                const controller = new AbortController();
+                const revealHorizontally = link => {
+                    const scroller = link.parentElement;
+                    if (!scroller) {
+                        return;
+                    }
+                    const left = link.offsetLeft;
+                    const right = left + link.offsetWidth;
+                    if (left < scroller.scrollLeft) {
+                        scroller.scrollTo({left, behavior: 'smooth'});
+                    } else if (right > scroller.scrollLeft + scroller.clientWidth) {
+                        scroller.scrollTo({left: right - scroller.clientWidth, behavior: 'smooth'});
+                    }
+                };
+                const activate = id => {
+                    links.forEach(link => {
+                        const active = link.dataset.sectionTarget === id;
+                        link.toggleAttribute('active', active);
+                        if (active) {
+                            link.setAttribute('aria-current', 'location');
+                            revealHorizontally(link);
+                        } else {
+                            link.removeAttribute('aria-current');
+                        }
+                    });
+                };
+                const update = () => {
+                    const threshold = nav.getBoundingClientRect().bottom + 24;
+                    let current = sections[0];
+                    for (const section of sections) {
+                        if (section.getBoundingClientRect().top <= threshold) {
+                            current = section;
+                        }
+                    }
+                    const hashTarget = location.hash.length > 1
+                        ? document.getElementById(location.hash.substring(1))
+                        : null;
+                    if (hashTarget && sections.includes(hashTarget)) {
+                        const rect = hashTarget.getBoundingClientRect();
+                        if (rect.top < window.innerHeight / 2 && rect.bottom > threshold) {
+                            current = hashTarget;
+                        }
+                    }
+                    activate(current.id);
+                };
+
+                links.forEach(link => link.addEventListener('click', event => {
+                    const target = document.getElementById(link.dataset.sectionTarget);
+                    if (!target) {
+                        return;
+                    }
+                    event.preventDefault();
+                    history.replaceState(history.state, '', '#' + target.id);
+                    target.scrollIntoView({
+                        behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+                        block: 'start'
+                    });
+                    activate(target.id);
+                }, {signal: controller.signal}));
+
+                const observer = new IntersectionObserver(update, {
+                    root: null,
+                    rootMargin: '-58px 0px -68% 0px',
+                    threshold: [0, 0.01]
+                });
+                sections.forEach(section => observer.observe(section));
+                window.addEventListener('scroll', update, {passive: true, signal: controller.signal});
+                window.addEventListener('resize', update, {passive: true, signal: controller.signal});
+                nav.__roadmapNavigationCleanup = () => {
+                    observer.disconnect();
+                    controller.abort();
+                };
+
+                requestAnimationFrame(() => {
+                    const hashTarget = location.hash.length > 1
+                        ? document.getElementById(location.hash.substring(1))
+                        : null;
+                    if (hashTarget && sections.includes(hashTarget)) {
+                        hashTarget.scrollIntoView({block: 'start'});
+                        activate(hashTarget.id);
+                    } else {
+                        update();
+                    }
+                });
+                """);
+    }
+
+    private record SectionDestination(String id, String label) {
     }
 
     private H1 title() {
@@ -150,12 +293,15 @@ public class RoadmapView extends VerticalLayout {
             results.add(freeFromSection(workload));
 
             results.add(epicLegend(roleChart));
-            results.add(ganttSection("Roadmap - Por rol", roleChart, "gantt-role-section"));
-            results.add(ganttSection("Roadmap - Por persona", personChart, "gantt-person-section"));
+            results.add(ganttSection(SECTION_BY_ROLE, "Roadmap - Por rol", roleChart, "gantt-role-section"));
+            results.add(ganttSection(SECTION_BY_PERSON, "Roadmap - Por persona", personChart, "gantt-person-section"));
 
             results.add(unplannedSection(workload));
             renderFootnote(roleChart);
+            sectionNavigation.setVisible(true);
+            installSectionNavigationBehavior();
         } catch (RuntimeException e) {
+            sectionNavigation.setVisible(false);
             results.add(errorNote(e));
         }
     }
@@ -215,13 +361,14 @@ public class RoadmapView extends VerticalLayout {
         return h2;
     }
 
-    private Component ganttSection(String title, GanttChart chart, String className) {
+    private Component ganttSection(String sectionId, String title, GanttChart chart, String className) {
         H2 heading = sectionTitle(title);
         heading.addClassName("gantt-section-heading");
         GanttChartWidget gantt = new GanttChartWidget(chart, 16, 7);
         gantt.addClassName("gantt-section-chart");
         VerticalLayout section = compactLayout();
         section.addClassNames("gantt-section", className);
+        section.setId(sectionId);
         section.add(heading, gantt);
         return section;
     }
@@ -257,7 +404,7 @@ public class RoadmapView extends VerticalLayout {
             content.add(usageLegend());
         }
 
-        return executiveSection("Carga del equipo",
+        return executiveSection(SECTION_LOAD, "Carga del equipo",
                 "Tres niveles de zoom sobre la misma grilla: el rol resume a toda su gente, cada persona resume sus "
                         + "tareas, y cada tarea muestra en qué semanas pesa. El esfuerzo se reparte a lo largo de la "
                         + "ventana planificada en vez de asumir dedicación completa, y se mide contra las horas realmente "
@@ -873,7 +1020,7 @@ public class RoadmapView extends VerticalLayout {
             people.forEach(person -> charts.add(personHistogram(person)));
         }
 
-        return executiveSection("Histograma de carga",
+        return executiveSection(SECTION_HISTOGRAM, "Histograma de carga",
                 "Cada barra es una semana. La línea punteada es la capacidad de esa semana; lo que la supera se "
                         + "dibuja en rojo y es trabajo que no entra sin mover algo.",
                 charts);
@@ -967,7 +1114,7 @@ public class RoadmapView extends VerticalLayout {
             people.forEach(person -> cards.add(freeFromCard(person)));
         }
 
-        return executiveSection("Libre desde",
+        return executiveSection(SECTION_AVAILABILITY, "Libre desde",
                 "Primer día disponible con menos del 80% de carga pendiente y saldo libre en su semana. "
                         + "Las horas se cuentan desde esa fecha hasta el final del horizonte. "
                         + "La estimación usa tareas fechadas; el trabajo sin plan se muestra por separado.",
@@ -1043,6 +1190,7 @@ public class RoadmapView extends VerticalLayout {
                 .set("color", unplanned.isEmpty() ? GanttStyle.PRIMARY_900 : "#A15C00");
 
         Details details = new Details(summary, content);
+        details.setId(SECTION_UNPLANNED);
         details.setOpened(!unplanned.isEmpty());
         details.setWidthFull();
         details.getStyle().set("background", "#F9FBFC").set("border", "1px solid " + GanttStyle.BORDER)
@@ -1129,9 +1277,10 @@ public class RoadmapView extends VerticalLayout {
         return note;
     }
 
-    private Component executiveSection(String title, String description, Component content) {
+    private Component executiveSection(String sectionId, String title, String description, Component content) {
         VerticalLayout section = compactLayout();
         section.addClassName("roadmap-section");
+        section.setId(sectionId);
         section.getStyle().set("background", "#F9FBFC").set("border", "1px solid " + GanttStyle.BORDER)
                 .set("border-radius", "10px").set("padding", "16px").set("gap", "8px");
         Span text = new Span(description);

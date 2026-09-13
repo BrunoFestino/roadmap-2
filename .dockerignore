@@ -1,0 +1,8 @@
+.git
+.idea
+.lavish
+.tools
+.env
+target
+node_modules
+*.log

@@ -73,17 +73,19 @@ public class BuildWorkloadReportUseCase {
     public static final double OVERALLOCATION_PCT = 100.0;
 
     /** Role bucket ordering, shared with the roadmap's "por rol" view. */
-    private static final List<Role> ROLE_BUCKETS = List.of(Role.BACKEND, Role.FRONTEND, Role.MOBILE, Role.DEVOPS);
+    private static final List<Role> ROLE_BUCKETS = List.of(Role.FRONTEND, Role.BACKEND, Role.MOBILE, Role.DEVOPS);
 
     private final GanttDataProvider dataProvider;
     private final TeamAbsenceRepository absenceRepository;
     private final JiraProperties jiraProperties;
+    private final GanttTeamRoster teamRoster;
 
     public BuildWorkloadReportUseCase(GanttDataProvider dataProvider, TeamAbsenceRepository absenceRepository,
-                                      JiraProperties jiraProperties) {
+                                      JiraProperties jiraProperties, GanttTeamRoster teamRoster) {
         this.dataProvider = dataProvider;
         this.absenceRepository = absenceRepository;
         this.jiraProperties = jiraProperties;
+        this.teamRoster = teamRoster;
     }
 
     /** Builds the report as of today. The entry point used by the view. */
@@ -118,10 +120,10 @@ public class BuildWorkloadReportUseCase {
         }
 
         Map<Role, List<PersonWorkload>> peopleByBucket = new LinkedHashMap<>();
-        for (TeamMember member : GanttTeamRoster.members()) {
+        for (TeamMember member : teamRoster.members()) {
             PersonWorkload person = buildPerson(member, tasksByUsername.getOrDefault(member.username(), List.of()),
                     weekStarts, asOf, calendars.getOrDefault(member.username(), List.of()));
-            peopleByBucket.computeIfAbsent(member.role().bucket(), bucket -> new ArrayList<>()).add(person);
+            peopleByBucket.computeIfAbsent(member.role(), role -> new ArrayList<>()).add(person);
         }
 
         List<RoleWorkload> roles = new ArrayList<>();
@@ -210,7 +212,7 @@ public class BuildWorkloadReportUseCase {
 
         LocalDate freeFrom = freeFrom(weeks, asOf, tasks, remaining, absent);
         return new PersonWorkload(member.username(), member.name(), member.role().label(), member.role().color(),
-                member.role().bucket().label(), List.copyOf(weeks), freeFrom, totalFreeHours(weeks, freeFrom, tasks, remaining, absent));
+                member.role().label(), List.copyOf(weeks), freeFrom, totalFreeHours(weeks, freeFrom, tasks, remaining, absent));
     }
 
     /**

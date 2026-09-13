@@ -11,11 +11,10 @@ package com.example.roadmap.gantt.application.model;
  */
 public enum Role {
 
-    BACKEND("Backend", "#0F4660"),
-    FRONTEND("Frontend", "#2C8FB5"),
-    FULL_STACK("Full Stack", "#6554C0"),
-    DEVOPS("DevOps", "#B36A00"),
-    MOBILE("Mobile Developer", "#2E7D32");
+    FRONTEND("Front", "#2C8FB5"),
+    BACKEND("BE", "#0F4660"),
+    MOBILE("Mobile", "#2E7D32"),
+    DEVOPS("DevOps", "#B36A00");
 
     private final String label;
     private final String color;
@@ -33,12 +32,8 @@ public enum Role {
         return color;
     }
 
-    /**
-     * The role bucket used to group the "By role" Gantt: {@code FULL_STACK} folds into
-     * {@code BACKEND} there, while the "By person" view still shows each member's real role
-     * (e.g. "Full Stack") next to their name.
-     */
-    public Role bucket() {
-        return this == FULL_STACK ? BACKEND : this;
+    /** The equivalent task stack when the person's role is used as the final fallback. */
+    public TaskStack stack() {
+        return TaskStack.valueOf(name());
     }
 }

@@ -22,9 +22,11 @@ import org.springframework.stereotype.Service;
 public class BuildPersonGanttUseCase {
 
     private final GanttDataProvider dataProvider;
+    private final GanttTeamRoster teamRoster;
 
-    public BuildPersonGanttUseCase(GanttDataProvider dataProvider) {
+    public BuildPersonGanttUseCase(GanttDataProvider dataProvider, GanttTeamRoster teamRoster) {
         this.dataProvider = dataProvider;
+        this.teamRoster = teamRoster;
     }
 
     public GanttChart build() {
@@ -36,7 +38,7 @@ public class BuildPersonGanttUseCase {
         List<GanttGroup> groups = new ArrayList<>();
         addContextGroups(groups, tasks, milestones);
 
-        for (TeamMember member : GanttTeamRoster.members()) {
+        for (TeamMember member : teamRoster.members()) {
             List<GanttTask> personTasks = tasks.stream()
                     .filter(task -> !task.isContextWork())
                     .filter(t -> t.assignee().username().equals(member.username()))
