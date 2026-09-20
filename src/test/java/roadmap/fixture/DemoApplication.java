@@ -49,43 +49,50 @@ public class DemoApplication {
         var jdbc = new JdbcTemplate(source);
         jdbc.update("""
                 INSERT INTO roadmap_schedule (issue_key, start_date, end_date, effort_md) VALUES
-                  ('TTAR-TEST',    '2026-09-11', '2026-09-14', 2),
-                  ('TTAR-OVERDUE', '2026-08-17', '2026-08-21', 3),
-                  ('TTAR-WEEKEND', '2026-09-12', '2026-09-13', 1),
-                  ('TTAR-2101',    '2026-09-14', '2026-09-25', 5),
-                  ('TTAR-2102',    '2026-09-16', '2026-10-02', 8),
-                  ('TTAR-2103',    '2026-09-21', '2026-10-09', 5),
-                  ('TTAR-2104',    '2026-10-05', '2026-10-16', 6),
-                  ('TTAR-2105',    '2026-09-28', '2026-10-16', 8),
-                  ('TTAR-2106',    '2026-10-12', '2026-10-30', 9),
-                  ('TTAR-2107',    '2026-09-14', '2026-10-02', 7),
-                  ('TTAR-2108',    '2026-09-17', '2026-10-09', 5),
-                  ('TTAR-2111',    '2026-09-18', '2026-09-25', 2),
-                  ('TTAR-2112',    '2026-09-21', '2026-09-30', 3),
-                  ('TTAR-2113',    '2026-10-01', '2026-10-12', 3),
-                  ('TTAR-2114',    '2026-10-12', '2026-10-23', 4)
+                  ('DEMO-TEST',    '2026-09-11', '2026-09-14', 2),
+                  ('DEMO-OVERDUE', '2026-08-17', '2026-08-21', 3),
+                  ('DEMO-WEEKEND', '2026-09-12', '2026-09-13', 1),
+                  ('DEMO-2101',    '2026-09-14', '2026-09-25', 5),
+                  ('DEMO-2102',    '2026-09-16', '2026-10-02', 8),
+                  ('DEMO-2103',    '2026-09-21', '2026-10-09', 5),
+                  ('DEMO-2104',    '2026-10-05', '2026-10-16', 6),
+                  ('DEMO-2105',    '2026-09-28', '2026-10-16', 8),
+                  ('DEMO-2106',    '2026-10-12', '2026-10-30', 9),
+                  ('DEMO-2107',    '2026-09-14', '2026-10-02', 7),
+                  ('DEMO-2108',    '2026-09-17', '2026-10-09', 5),
+                  ('DEMO-2111',    '2026-09-18', '2026-09-25', 2),
+                  ('DEMO-2112',    '2026-09-21', '2026-09-30', 3),
+                  ('DEMO-2113',    '2026-10-01', '2026-10-12', 3),
+                  ('DEMO-2114',    '2026-10-12', '2026-10-23', 4),
+                  ('DEMO-GREEN',   '2026-11-02', '2026-11-06', null),
+                  ('DEMO-YELLOW',  '2026-11-02', '2026-11-06', null),
+                  ('DEMO-RED',     '2026-11-02', '2026-11-06', null),
+                  ('DEMO-PARENT',  '2026-10-19', '2026-10-30', null),
+                  ('DEMO-SUB-A',   '2026-10-19', '2026-10-30', 3),
+                  ('DEMO-SUB-B',   '2026-10-19', '2026-10-30', null),
+                  ('DEMO-SUB-C',   '2026-10-19', '2026-10-30', null)
                 """);
         jdbc.update("""
                 INSERT INTO team_absence (id, username, start_date, end_date, absence_type, note) VALUES
-                  ('demo-absence-1', 'mbazante',   '2026-09-18', '2026-09-18', 'BIRTHDAY',   'Cumpleaños'),
-                  ('demo-absence-2', 'bfestino',   '2026-09-21', '2026-09-23', 'VACATION',   'Vacaciones planificadas'),
-                  ('demo-absence-3', 'rdente',     '2026-09-28', '2026-09-29', 'SICK_LEAVE', 'Licencia médica'),
-                  ('demo-absence-4', 'tarteaga',   '2026-10-05', '2026-10-09', 'VACATION',   'Viaje familiar'),
-                  ('demo-absence-5', 'sbenalcaza', '2026-10-12', '2026-10-12', 'OTHER',      'Trámite personal')
+                  ('demo-absence-1', 'mjohnson',   '2026-09-18', '2026-09-18', 'BIRTHDAY',   'Birthday'),
+                  ('demo-absence-2', 'jdoe',   '2026-09-21', '2026-09-23', 'VACATION',   'Planned vacation'),
+                  ('demo-absence-3', 'tanderson',     '2026-09-28', '2026-09-29', 'SICK_LEAVE', 'Medical leave'),
+                  ('demo-absence-4', 'dlee',   '2026-10-05', '2026-10-09', 'VACATION',   'Family trip'),
+                  ('demo-absence-5', 'emartin', '2026-10-12', '2026-10-12', 'OTHER',      'Personal appointment')
                 """);
         jdbc.update("""
                 UPDATE roadmap_schedule
                 SET stack_local = CASE issue_key
-                    WHEN 'TTAR-2104' THEN 'FRONTEND'
-                    WHEN 'TTAR-2112' THEN 'DEVOPS'
+                    WHEN 'DEMO-2104' THEN 'FRONTEND'
+                    WHEN 'DEMO-2112' THEN 'DEVOPS'
                     ELSE stack_local
                 END
-                WHERE issue_key IN ('TTAR-2104', 'TTAR-2112')
+                WHERE issue_key IN ('DEMO-2104', 'DEMO-2112')
                 """);
         return jdbc;
     }
 
-    @Bean JiraProperties properties() { return new JiraProperties("http://127.0.0.1:18083", "synthetic", "TTAR", null, null); }
+    @Bean JiraProperties properties() { return new JiraProperties("http://127.0.0.1:18083", "synthetic", "DEMO", null, null); }
     @Bean GanttTeamRoster teamRoster() { return teamRoster; }
     @Bean TaskStackResolver taskStackResolver() { return taskStackResolver; }
 
@@ -107,9 +114,9 @@ public class DemoApplication {
 
     @Bean TargetStartRepository schedules(JdbcTemplate jdbc) {
         return new TargetStartRepository(jdbc) {
-            @Override public void saveSchedule(String key, LocalDate start, LocalDate end, TaskStack stack) {
+            @Override public void saveSchedule(String key, LocalDate start, LocalDate end, TaskStack stack, Double effortMd) {
                 fail("schedule-save");
-                super.saveSchedule(key, start, end, stack);
+                super.saveSchedule(key, start, end, stack, effortMd);
                 fault.updateAndGet(value -> "reload-after-save".equals(value) ? "jira-load" : value);
             }
         };
@@ -120,49 +127,58 @@ public class DemoApplication {
             public JiraSearchResponseDto searchOpenIssuesByAssignees(String p, List<String> users) {
                 fail("jira-load");
                 return new JiraSearchResponseDto(List.of(
-                        issue("TTAR-2000", "Nueva experiencia mobile", "Epic", "bfestino", "In Progress", null, null, null, "2026-09-01", null, 0),
-                        issue("TTAR-2001", "Modernización de plataforma", "Epic", "tarteaga", "In Progress", null, null, null, "2026-09-07", null, 0),
-                        issue("TTAR-2002", "Experiencia web accesible", "Epic", "mbazante", "Open", null, null, null, "2026-09-14", null, 0),
+                        issue("DEMO-2010", "Renewed mobile checkout", "User Story", "asmith", "Open", "13", "DEMO-2000", null, "2026-09-07", null, 0),
+                        issue("DEMO-2011", "Offline synchronization", "User Story", "jdoe", "In Progress", "8", "DEMO-2000", null, null, "2026-09-03", 16),
+                        issue("DEMO-2020", "Low-latency APIs", "User Story", "dlee", "In Progress", "13", "DEMO-2001", null, "2026-09-08", null, 24),
+                        issue("DEMO-2021", "End-to-end observability", "User Story", "tanderson", "Open", "5", "DEMO-2001", null, "2026-09-21", null, 0),
+                        issue("DEMO-2030", "New design system", "User Story", "mjohnson", "In Progress", "8", "DEMO-2002", null, null, "2026-09-10", 8),
+                        issue("DEMO-2031", "Accessible AA workflows", "User Story", "bwilson", "Open", "5", "DEMO-2002", null, "2026-09-28", null, 0),
 
-                        issue("TTAR-2010", "Checkout mobile renovado", "User Story", "dgillig", "Open", "13", "TTAR-2000", null, "2026-09-07", null, 0),
-                        issue("TTAR-2011", "Sincronización offline", "User Story", "bfestino", "In Progress", "8", "TTAR-2000", null, null, "2026-09-03", 16),
-                        issue("TTAR-2020", "APIs de baja latencia", "User Story", "tarteaga", "In Progress", "13", "TTAR-2001", null, "2026-09-08", null, 24),
-                        issue("TTAR-2021", "Observabilidad end-to-end", "User Story", "rdente", "Open", "5", "TTAR-2001", null, "2026-09-21", null, 0),
-                        issue("TTAR-2030", "Nuevo sistema de diseño", "User Story", "mbazante", "In Progress", "8", "TTAR-2002", null, null, "2026-09-10", 8),
-                        issue("TTAR-2031", "Flujos accesibles AA", "User Story", "agrigaliun", "Open", "5", "TTAR-2002", null, "2026-09-28", null, 0),
+                        issue("DEMO-TEST", "Friday-to-Monday test", "Task", "jdoe", "Open", "2", null, null, null, null, 0),
+                        issue("DEMO-GREEN", "Traffic light example: 30 hours", "Task", "bwilson", "Open", "3.75", null, null, null, null, 0),
+                        issue("DEMO-YELLOW", "Traffic light example: 36 hours", "Task", "mjohnson", "Open", "4.5", null, null, null, null, 0),
+                        issue("DEMO-RED", "Traffic light example: 44 hours", "Task", "jdoe", "Open", "5.5", null, null, null, null, 0),
+                        issue("DEMO-PARENT", "Mixed subtask budget example", "Task", "bwilson", "Open", "10", null, null, null, null, 0),
+                        issue("DEMO-SUB-A", "Explicit local estimate: 3 MD", "Sub-task", "bwilson", "Open", "9", null, "DEMO-PARENT", null, null, 0),
+                        issue("DEMO-SUB-B", "Inherited share: 3.5 MD", "Sub-task", "jdoe", "Open", "9", null, "DEMO-PARENT", null, null, 0),
+                        issue("DEMO-SUB-C", "Inherited share: 3.5 MD", "Sub-task", "mjohnson", "Open", "9", null, "DEMO-PARENT", null, null, 0),
+                        issue("DEMO-OVERDUE", "Overdue commitment", "Bug", "jdoe", "Blocked", "3", null, null, null, null, 0),
+                        issue("DEMO-WEEKEND", "Window with no available days", "Task", "jdoe", "Open", "1", null, null, null, null, 0),
+                        issue("DEMO-2101", "Biometric authentication", "Task", "asmith", "In Progress", "5", "DEMO-2000", null, null, null, 8),
+                        issue("DEMO-2102", "Responsive components", "Task", "mjohnson", "Open", "8", "DEMO-2002", null, null, null, 0),
+                        issue("DEMO-2103", "Reduce checkout latency", "Bug", "dlee", "In Progress", "5", "DEMO-2001", null, null, null, 12),
+                        issue("DEMO-2104", "Feature flags by market", "Spike", "bwilson", "Open", "6", "DEMO-2001", null, null, null, 0),
+                        issue("DEMO-2105", "Payment idempotency", "Task", "sbrown", "Blocked", "8", "DEMO-2001", null, null, null, 0),
+                        issue("DEMO-2106", "Nightly reconciliation", "L3 Problem", "rgarcia", "Open", "9", null, null, null, null, 0),
+                        issue("DEMO-2107", "Visual regression suite", "Test Plan", "emartin", "In Progress", "7", "DEMO-2002", null, null, null, 16),
+                        issue("DEMO-2108", "Distributed tracing", "Task", "tanderson", "Open", "5", "DEMO-2001", null, null, null, 0),
 
-                        issue("TTAR-TEST", "Prueba viernes a lunes", "Task", "bfestino", "Open", "2", null, null, null, null, 0),
-                        issue("TTAR-OVERDUE", "Compromiso vencido", "Bug", "bfestino", "Blocked", "3", null, null, null, null, 0),
-                        issue("TTAR-WEEKEND", "Ventana sin días disponibles", "Task", "bfestino", "Open", "1", null, null, null, null, 0),
-                        issue("TTAR-2101", "Autenticación biométrica", "Task", "dgillig", "In Progress", "5", "TTAR-2000", null, null, null, 8),
-                        issue("TTAR-2102", "Componentes responsive", "Task", "mbazante", "Open", "8", "TTAR-2002", null, null, null, 0),
-                        issue("TTAR-2103", "Reducir latencia del checkout", "Bug", "tarteaga", "In Progress", "5", "TTAR-2001", null, null, null, 12),
-                        issue("TTAR-2104", "Feature flags por mercado", "Spike", "agrigaliun", "Open", "6", "TTAR-2001", null, null, null, 0),
-                        issue("TTAR-2105", "Idempotencia de pagos", "Task", "sreza1", "Blocked", "8", "TTAR-2001", null, null, null, 0),
-                        issue("TTAR-2106", "Reconciliación nocturna", "L3 Problem", "mmendoza", "Open", "9", null, null, null, null, 0),
-                        issue("TTAR-2107", "Suite de regresión visual", "Test Plan", "sbenalcaza", "In Progress", "7", "TTAR-2002", null, null, null, 16),
-                        issue("TTAR-2108", "Trazas distribuidas", "Task", "rdente", "Open", "5", "TTAR-2001", null, null, null, 0),
+                        issue("DEMO-2111", "Validate Face ID and fingerprint", "Sub-task", "asmith", "In Progress", null, null, "DEMO-2010", null, null, 4),
+                        issue("DEMO-2112", "Persist offline queue", "Sub-task", "jdoe", "Open", null, null, "DEMO-2011", null, null, 0),
+                        issue("DEMO-2113", "Migrate country selector", "Sub-task", "mjohnson", "Open", null, null, "DEMO-2030", null, null, 0),
+                        issue("DEMO-2114", "Add catalog cache", "Sub-task", "dlee", "Open", null, null, "DEMO-2020", null, null, 0),
 
-                        issue("TTAR-2111", "Validar Face ID y huella", "Sub-task", "dgillig", "In Progress", null, null, "TTAR-2010", null, null, 4),
-                        issue("TTAR-2112", "Persistir cola offline", "Sub-task", "bfestino", "Open", null, null, "TTAR-2011", null, null, 0),
-                        issue("TTAR-2113", "Migrar selector de país", "Sub-task", "mbazante", "Open", null, null, "TTAR-2030", null, null, 0),
-                        issue("TTAR-2114", "Agregar cache de catálogo", "Sub-task", "tarteaga", "Open", null, null, "TTAR-2020", null, null, 0),
+                        issue("DEMO-2201", "Reconciliation hotfix", "Bug", "rgarcia", "In Progress", "3", "DEMO-2001", null, null, "2026-09-11", 4),
+                        issue("DEMO-2202", "Configuration panel", "Task", "bwilson", "Open", "4", "DEMO-2002", null, "2026-10-19", null, 0),
+                        issue("DEMO-2203", "Token migration", "Task", "emartin", "Open", null, "DEMO-2001", null, "2026-10-26", null, 0),
 
-                        issue("TTAR-2201", "Hotfix de conciliación", "Bug", "mmendoza", "In Progress", "3", "TTAR-2001", null, null, "2026-09-11", 4),
-                        issue("TTAR-2202", "Panel de configuración", "Task", "agrigaliun", "Open", "4", "TTAR-2002", null, "2026-10-19", null, 0),
-                        issue("TTAR-2203", "Migración de tokens", "Task", "sbenalcaza", "Open", null, "TTAR-2001", null, "2026-10-26", null, 0),
-
-                        issue("TTAR-NODATE", "Trabajo pendiente de planificar", "Task", "bfestino", "Open", "3", null, null, null, null, 0),
-                        issue("TTAR-2190", "Definir estrategia de deep links", "Task", "dgillig", "Open", "5", "TTAR-2000", null, null, null, 0),
-                        issue("TTAR-2191", "Investigar intermitencia de webhooks", "Bug", "sreza1", "Blocked", "0", "TTAR-2001", null, null, null, 0)));
+                        issue("DEMO-NODATE", "Work awaiting planning", "Task", "jdoe", "Open", "3", null, null, null, null, 0),
+                        issue("DEMO-2190", "Define deep-link strategy", "Task", "asmith", "Open", "5", "DEMO-2000", null, null, null, 0),
+                        issue("DEMO-2191", "Investigate intermittent webhooks", "Bug", "sbrown", "Blocked", "0", "DEMO-2001", null, null, null, 0)));
+            }
+            public JiraSearchResponseDto searchOpenEpics(String p) {
+                return new JiraSearchResponseDto(List.of(
+                        epic("DEMO-2000", "Mobile experience", "2026-09-01", "2026-10-02", "In Progress"),
+                        epic("DEMO-2001", "Platform modernization", "2026-09-07", "2026-10-16", "In Progress"),
+                        epic("DEMO-2002", "Accessible web experience", "2026-09-14", "2026-10-30", "Open")));
             }
             public JiraSearchResponseDto searchOpenMilestones(String p) {
                 return new JiraSearchResponseDto(List.of(
-                        milestone("TTAR-M1", "Piloto interno", "2026-09-04", "Open"),
-                        milestone("TTAR-M2", "Beta mobile", "2026-09-25", "Open"),
-                        milestone("TTAR-M3", "Freeze de integración", "2026-10-09", "In Progress"),
-                        milestone("TTAR-M4", "Release AR1", "2026-10-30", "Open"),
-                        milestone("TTAR-M5", "Entrega descartada", "2026-09-18", "Closed")));
+                        milestone("DEMO-M1", "Internal pilot", "2026-09-04", "Open"),
+                        milestone("DEMO-M2", "Beta mobile", "2026-09-25", "Open"),
+                        milestone("DEMO-M3", "Integration freeze", "2026-10-09", "In Progress"),
+                        milestone("DEMO-M4", "Release example", "2026-10-30", "Open"),
+                        milestone("DEMO-M5", "Discarded delivery", "2026-09-18", "Closed")));
             }
         };
     }
@@ -171,9 +187,9 @@ public class DemoApplication {
                                String effort, String epicKey, String parentKey, String targetStart,
                                String firstTimeInProgress, int loggedHours) {
         TeamMember member = teamRoster.byUsername(username);
-        JiraIssueDto.TimeTracking tracking = loggedHours == 0
-                ? null
-                : new JiraIssueDto.TimeTracking(null, loggedHours * 3600);
+        Integer originalSeconds = effort != null && Double.parseDouble(effort) > 0
+                ? (int) Math.round(Double.parseDouble(effort) * 8 * 3600) : null;
+        JiraIssueDto.TimeTracking tracking = new JiraIssueDto.TimeTracking(originalSeconds, loggedHours * 3600);
         JiraIssueDto.Parent parent = parentKey == null ? null : new JiraIssueDto.Parent(parentKey);
         return new JiraIssueDto(key, new JiraIssueDto.Fields(summary, new JiraIssueDto.IssueType(type), tracking,
                 new JiraIssueDto.User(member.name(), member.username(), null), new JiraIssueDto.Status(status),
@@ -183,12 +199,12 @@ public class DemoApplication {
 
     private List<String> stackLabels(String key) {
         return switch (key) {
-            case "TTAR-2101", "TTAR-2111" -> List.of("Mobile");
-            case "TTAR-2102", "TTAR-2113" -> List.of("Front End");
-            case "TTAR-2103", "TTAR-2104", "TTAR-2114" -> List.of("BE");
-            case "TTAR-2105" -> List.of("Mobile");
-            case "TTAR-2107" -> List.of("Front End", "BE");
-            case "TTAR-2108" -> List.of("DevOps");
+            case "DEMO-2101", "DEMO-2111" -> List.of("Mobile");
+            case "DEMO-2102", "DEMO-2113" -> List.of("Front End");
+            case "DEMO-2103", "DEMO-2104", "DEMO-2114" -> List.of("BE");
+            case "DEMO-2105" -> List.of("Mobile");
+            case "DEMO-2107" -> List.of("Front End", "BE");
+            case "DEMO-2108" -> List.of("DevOps");
             default -> List.of("roadmap-demo");
         };
     }
@@ -197,6 +213,12 @@ public class DemoApplication {
         return new JiraIssueDto(key, new JiraIssueDto.Fields(summary, new JiraIssueDto.IssueType("Milestone"), null,
                 null, new JiraIssueDto.Status(status), null, "2026-08-03", dueDate,
                 List.of(), Map.of()));
+    }
+
+    private JiraIssueDto epic(String key, String summary, String targetStart, String dueDate, String status) {
+        return new JiraIssueDto(key, new JiraIssueDto.Fields(summary, new JiraIssueDto.IssueType("Epic"), null,
+                null, new JiraIssueDto.Status(status), null, "2026-08-03", dueDate,
+                List.of(), customFields(null, null, targetStart, null)));
     }
 
     private Map<String, Object> customFields(String effort, String epicKey, String targetStart,

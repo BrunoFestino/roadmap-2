@@ -10,7 +10,7 @@ package com.example.roadmap.gantt.ui.style;
  */
 public final class GanttStyle {
 
-    public static final String FONT = "Inter, 'Helvetica Neue', Arial, system-ui, sans-serif";
+    public static final String FONT = "'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif";
     public static final String PRIMARY_900 = "#0F4660";
     public static final String INK = "#1F2A30";
     public static final String MUTED = "#5F6B72";
@@ -26,6 +26,8 @@ public final class GanttStyle {
     public static final int PX_PER_DAY = 18;
     /** Fixed width of the left group-label column. */
     public static final int LEFT_COL = 150;
+    /** Space reserved for a task's start-date label before the timeline begins. */
+    public static final int TIMELINE_GAP = 38;
     /** Height reserved for the month and week axes / milestone header band. */
     public static final int HEADER_H = 80;
     /** Vertical padding inside a group, above/below its lanes. */

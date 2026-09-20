@@ -2,13 +2,13 @@ package com.example.roadmap.gantt.ui.widget;
 
 import com.example.roadmap.gantt.application.dto.GanttChart;
 import com.example.roadmap.gantt.application.dto.GanttGroup;
-import com.example.roadmap.gantt.application.model.EpicPalette;
 import com.example.roadmap.gantt.application.model.GanttTask;
 import com.example.roadmap.gantt.application.model.Milestone;
 import com.example.roadmap.gantt.application.model.WorkingDays;
 import com.example.roadmap.gantt.ui.style.GanttStyle;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.Span;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.TemporalAdjusters;
@@ -22,20 +22,20 @@ import java.util.Locale;
  * <p>Each group (a role or a person) gets its tasks packed into sub-lanes by
  * {@link GanttLanePacker} so overlapping tasks are never hidden behind one another. Every
  * bar's width is {@code working days * PX_PER_DAY} - never stretched or clamped - with its
- * planned finish date always drawn next to it. Milestones are full-height dashed markers on
- * the timeline, never rows.
+ * planned finish date always drawn next to it. Milestones are delivery-date diamonds in the
+ * timeline header, never rows or duration bars.
  */
 public class GanttChartWidget extends Div {
 
-    private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("dd/MM", Locale.forLanguageTag("es-AR"));
+    private static final DateTimeFormatter DAY_MONTH = DateTimeFormatter.ofPattern("MM/dd", Locale.ENGLISH);
     /** Horizontal room a {@code dd/MM} label needs when drawn to the left of a bar. */
     private static final int START_LABEL_W = 38;
     /** Narrowest bar that can still hold the start date inside it next to the title. */
     private static final int START_LABEL_INSIDE_MIN_W = 74;
     private static final DateTimeFormatter WEEK_LABEL =
-            DateTimeFormatter.ofPattern("EEE d MMM", Locale.forLanguageTag("es-AR"));
+            DateTimeFormatter.ofPattern("EEE, MMM d", Locale.ENGLISH);
     private static final DateTimeFormatter MONTH_LABEL =
-            DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-AR"));
+            DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 
     private final transient GanttChart chart;
     private final int pixelsPerDay;
@@ -71,7 +71,8 @@ public class GanttChartWidget extends Div {
         }
 
         List<GroupLayout> layouts = layout();
-        int totalWidth = GanttStyle.LEFT_COL + (int) (chart.totalDays() * pixelsPerDay) + 60;
+        int totalWidth = GanttStyle.LEFT_COL + GanttStyle.TIMELINE_GAP
+                + (int) (chart.totalDays() * pixelsPerDay) + 60;
         int totalHeight = layouts.isEmpty() ? GanttStyle.HEADER_H : layouts.get(layouts.size() - 1).bottom() + 10;
 
         Div content = new Div();
@@ -148,7 +149,8 @@ public class GanttChartWidget extends Div {
             Div band = new Div();
             band.getStyle()
                     .set("position", "absolute")
-                    .set("left", (GanttStyle.LEFT_COL + i * pixelsPerDay) + "px")
+                    .set("left", (GanttStyle.LEFT_COL + GanttStyle.TIMELINE_GAP
+                            + i * pixelsPerDay) + "px")
                     .set("top", (GanttStyle.HEADER_H - 8) + "px")
                     .set("width", pixelsPerDay + "px")
                     .set("height", (totalHeight - GanttStyle.HEADER_H + 8) + "px")
@@ -222,13 +224,13 @@ public class GanttChartWidget extends Div {
         int x = GanttScale.xOf(chart, today, pixelsPerDay);
 
         Div line = new Div();
-        line.getElement().setAttribute("title", "Hoy · " + DAY_MONTH.format(today));
+        line.getElement().setAttribute("title", "Today · " + DAY_MONTH.format(today));
         line.getStyle().set("position", "absolute").set("left", x + "px")
                 .set("top", (GanttStyle.HEADER_H - 12) + "px")
                 .set("height", Math.max(0, totalHeight - GanttStyle.HEADER_H + 12) + "px")
                 .set("width", "0").set("border-left", "1.5px solid " + GanttStyle.TODAY);
 
-        Span tag = new Span("hoy");
+        Span tag = new Span("today");
         tag.getStyle().set("position", "absolute").set("left", (x - 12) + "px")
                 .set("top", (GanttStyle.HEADER_H - 30) + "px")
                 .set("background", GanttStyle.TODAY).set("color", "#fff").set("font-size", "9.5px")
@@ -249,29 +251,22 @@ public class GanttChartWidget extends Div {
             int x = GanttScale.xOf(chart, m.date(), pixelsPerDay);
             int level = i % 2;
             int labelTop = 24 + level * 20;
-            // Milestones carry no Jira key here, so their own name seeds the palette: each
-            // marker keeps a stable colour instead of every one of them being the same red.
-            String color = EpicPalette.colorFor(m.name());
-
-            Div line = new Div();
-            line.getStyle().set("position", "absolute").set("left", x + "px")
-                    .set("top", (labelTop + 16) + "px")
-                    .set("height", Math.max(0, totalHeight - labelTop - 16) + "px")
-                    .set("width", "0").set("border-left", "2px dashed " + color)
-                    .set("opacity", "0.75");
+            String color = m.color();
 
             Div diamond = new Div();
+            diamond.getElement().setAttribute("title",
+                    "Milestone " + m.key() + "\n" + m.name() + "\nDelivery Date: " + DAY_MONTH.format(m.date()));
             diamond.getStyle().set("position", "absolute").set("left", (x - 6) + "px").set("top", labelTop + "px")
                     .set("width", "12px").set("height", "12px").set("background", color)
                     .set("transform", "rotate(45deg)").set("border-radius", "2px");
 
-            Span label = new Span(m.name() + " " + DAY_MONTH.format(m.date()));
+            Span label = new Span(m.key() + " · " + m.name() + " · " + DAY_MONTH.format(m.date()));
             label.getStyle().set("position", "absolute").set("left", (x + 10) + "px").set("top", labelTop + "px")
                     .set("font-size", "10.5px").set("font-weight", "700").set("color", "#FFFFFF")
                     .set("background", color).set("border", "1px solid " + color)
                     .set("border-radius", "3px").set("padding", "1px 6px").set("white-space", "nowrap");
 
-            wrap.add(line, diamond, label);
+            wrap.add(diamond, label);
         }
         return wrap;
     }
@@ -279,12 +274,16 @@ public class GanttChartWidget extends Div {
     // ── groups ────────────────────────────────────────────────────────────────────
 
     private Span groupLabel(GroupLayout g) {
-        int totalMd = g.group().tasks().stream().mapToInt(task -> task.md()).sum();
+        double totalMd = g.group().tasks().stream().mapToDouble(GanttTask::md).sum();
         LocalDate latestEnd = g.group().tasks().stream().map(GanttTask::end).max(LocalDate::compareTo).orElse(null);
-        String metadata = g.group().tasks().isEmpty()
-                ? "sin carga"
-                : totalMd + " MD · hasta " + DAY_MONTH.format(latestEnd);
         boolean context = isContextGroup(g);
+        String metadata = g.group().tasks().isEmpty()
+                ? "no workload"
+                : context
+                ? g.group().tasks().size() + " Epic" + (g.group().tasks().size() == 1 ? "" : "s")
+                    + " · hasta " + DAY_MONTH.format(latestEnd)
+                : formatMd(totalMd) + (g.group().tasks().stream().anyMatch(GanttTask::inheritedEffort)
+                        ? " MD (includes parent shares) · through " : " original MD · through ") + DAY_MONTH.format(latestEnd);
         Span text = new Span(g.group().label() + " · " + metadata);
         text.getStyle().set("position", "absolute").set("left", "0px")
                 .set("top", (g.top() + g.height() / 2.0 - 15) + "px")
@@ -304,7 +303,7 @@ public class GanttChartWidget extends Div {
     }
 
     private Span emptyNote(GroupLayout g) {
-        Span note = new Span(isContextGroup(g) ? "sin elementos en la ventana" : "sin tareas en la ventana");
+        Span note = new Span(isContextGroup(g) ? "no items in this window" : "no tasks in this window");
         note.getStyle().set("position", "absolute").set("left", GanttStyle.LEFT_COL + "px")
                 .set("top", (g.top() + g.height() / 2.0 - 7) + "px")
                 .set("font-size", "11px").set("font-style", "italic").set("color", "#BBBBBB");
@@ -320,22 +319,24 @@ public class GanttChartWidget extends Div {
         wrap.getStyle().set("position", "absolute").set("left", placed.x() + "px").set("top", barTop + "px")
                 .set("height", GanttStyle.BAR_HEIGHT + "px");
 
-        String tooltip = "Task Key: " + placed.task().key()
+        String tooltip = (placed.task().isEpic() ? "Epic: " : "Task Key: ") + placed.task().key()
                 + "\nSummary: " + placed.task().summary()
                 + "\nStart Date: " + DAY_MONTH.format(placed.task().start())
                 + "\nEnd Date: " + DAY_MONTH.format(placed.task().end())
-                + (placed.task().hasCalendarWindow() ? "" : " (sin ventana planificada: se asume 100%)")
-                + "\nEffort: " + placed.task().md() + " MD ("
+                + (placed.task().isEpic() ? "\nPlanned initiative duration"
+                : (placed.task().hasCalendarWindow() ? "" : " (no planned window: productive-capacity fallback)")
+                + (placed.task().inheritedEffort() ? "\nInherited parent budget: " : "\nOriginal effort: ")
+                + formatMd(placed.task().md()) + " MD ("
                 + formatHours(placed.task().workHours()) + " h)"
-                + "\nCarga y disponibilidad: consultar el desglose semanal"
+                + "\nWorkload and availability: see the weekly breakdown"
                 + "\nAssignee: " + placed.task().assignee().name()
                 + "\nRole: " + placed.task().assignee().role().label()
-                + "\nStack efectivo: " + placed.task().stack().label()
-                + "\nFuente del stack: " + placed.task().stackSource().label()
-                + "\nÉpica: " + (placed.task().missingEpic()
-                ? EpicPalette.UNASSIGNED_LABEL
-                : placed.task().effectiveEpicKey())
-                + "\nStatus: " + (placed.task().status() == null ? "Sin estado" : placed.task().status())
+                + (placed.task().prjTaskLabels().isEmpty() ? ""
+                : "\nPRJtask: " + String.join(", ", placed.task().prjTaskLabels()))
+                + "\nEpic: " + (placed.task().missingEpic() ? "No Epic" : placed.task().effectiveEpicKey())
+                + "\nMilestone: " + (placed.task().effectiveMilestoneKey() == null
+                ? "No Milestone" : placed.task().effectiveMilestoneKey()))
+                + "\nStatus: " + (placed.task().status() == null ? "No status" : placed.task().status())
                 + "\nStart source: " + placed.task().startDateSource().label();
 
         Div bar = GanttBar.create(placed.width(), colorFor(g, placed), placed.task().estimated(), narrow, tooltip);
@@ -398,7 +399,7 @@ public class GanttChartWidget extends Div {
     }
 
     private boolean isContextGroup(GroupLayout group) {
-        return "Milestones y épicas".equals(group.group().label())
+        return "Milestones and epics".equals(group.group().label())
                 || "User Stories".equals(group.group().label());
     }
 
@@ -406,6 +407,12 @@ public class GanttChartWidget extends Div {
         return hours == Math.rint(hours)
                 ? String.valueOf((long) hours)
                 : String.format(Locale.ROOT, "%.1f", hours);
+    }
+
+    private String formatMd(double md) {
+        return md == Math.rint(md)
+                ? String.valueOf((long) md)
+                : String.format(Locale.ROOT, "%.2f", md);
     }
 
     private Span note(String text) {

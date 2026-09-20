@@ -3,7 +3,7 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path $PSScriptRoot -Parent
 if (-not $env:JAVA_HOME) { throw 'Configurá JAVA_HOME con un JDK 21.' }
 $classpathFile = Join-Path $repo 'target/test-classpath.txt'
-if (-not (Test-Path -LiteralPath $classpathFile)) { throw 'Ejecutá primero el comando test-compile y dependency:build-classpath del README.' }
+if (-not (Test-Path -LiteralPath $classpathFile)) { throw 'Run .\mvnw.cmd -Pproduction package dependency:build-classpath "-Dmdep.includeScope=test" "-Dmdep.outputFile=target/test-classpath.txt" first.' }
 $classpath = (Join-Path $repo 'target/test-classes') + ';' + (Join-Path $repo 'target/classes') + ';' + (Get-Content -Raw -LiteralPath $classpathFile).Trim()
 Push-Location $repo
 try {

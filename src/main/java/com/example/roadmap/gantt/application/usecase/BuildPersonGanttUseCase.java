@@ -14,7 +14,7 @@ import java.util.List;
 import org.springframework.stereotype.Service;
 
 /**
- * Builds the "Roadmap Gantt - View by Person": one group per AR1 team member, in roster
+ * Builds the "Roadmap Gantt - View by Person": one group per roadmap team member, in roster
  * order, holding their tasks ordered by planned start date. Members with no current work
  * still get an (empty) group, so the roadmap always shows the whole team.
  */
@@ -56,7 +56,7 @@ public class BuildPersonGanttUseCase {
         List<GanttTask> epics = tasks.stream().filter(GanttTask::isEpic)
                 .sorted(Comparator.comparing(GanttTask::start)).toList();
         if (!epics.isEmpty() || !milestones.isEmpty()) {
-            groups.add(new GanttGroup("Milestones y épicas", "#6554C0", epics));
+            groups.add(new GanttGroup("Milestones and epics", "#6554C0", epics));
         }
         List<GanttTask> stories = tasks.stream().filter(GanttTask::isUserStory)
                 .sorted(Comparator.comparing(GanttTask::start)).toList();

@@ -42,6 +42,11 @@ public record PersonWorkload(
         return weeks.stream().anyMatch(WeekLoad::overallocated);
     }
 
+    public LoadSignal loadSignal() {
+        return weeks.stream().map(WeekLoad::loadSignal)
+                .max(Comparator.naturalOrder()).orElse(LoadSignal.UNAVAILABLE);
+    }
+
     /** The most loaded week of the horizon: Microsoft Project's "peak units" for this person. */
     public double peakUtilizationPct() {
         return weeks.stream().mapToDouble(WeekLoad::utilizationPct).max().orElse(0);

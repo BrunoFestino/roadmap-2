@@ -58,7 +58,7 @@ public class BuildRoleGanttUseCase {
         List<GanttTask> epics = tasks.stream().filter(GanttTask::isEpic)
                 .sorted(Comparator.comparing(GanttTask::start)).toList();
         if (!epics.isEmpty() || !milestones.isEmpty()) {
-            groups.add(new GanttGroup("Milestones y épicas", "#6554C0", epics));
+            groups.add(new GanttGroup("Milestones and epics", "#6554C0", epics));
         }
         List<GanttTask> stories = tasks.stream().filter(GanttTask::isUserStory)
                 .sorted(Comparator.comparing(GanttTask::start)).toList();

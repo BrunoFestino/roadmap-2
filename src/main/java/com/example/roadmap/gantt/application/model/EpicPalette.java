@@ -61,7 +61,7 @@ public final class EpicPalette {
     public static final String UNASSIGNED = "#6B7280";
 
     /** Label used wherever the unresolved bucket needs a name. */
-    public static final String UNASSIGNED_LABEL = "Sin épica";
+    public static final String UNASSIGNED_LABEL = "No epic";
 
     private EpicPalette() {
     }
@@ -69,7 +69,7 @@ public final class EpicPalette {
     /**
      * The colour for an epic key, stable for the lifetime of that key.
      *
-     * @param epicKey Jira key of the epic, e.g. {@code "TTAR-9800"}; blank or {@code null}
+     * @param epicKey Jira key of the epic, e.g. {@code "DEMO-9800"}; blank or {@code null}
      *                yields {@link #UNASSIGNED}
      */
     public static String colorFor(String epicKey) {

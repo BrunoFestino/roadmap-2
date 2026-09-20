@@ -26,12 +26,12 @@
 
 /* Three readable levels in the effort grid: role, person, then task detail. */
 .usage-role-row {
-    background: #f5f9fb;
-    border: 1px solid #cbdde5;
-    border-left: 4px solid #14658a;
+    background: #fff;
+    border: 0;
     border-radius: 10px;
-    overflow: hidden;
-    padding-bottom: 8px;
+    box-shadow: none;
+    overflow: visible;
+    padding-bottom: 0;
 }
 
 .usage-role-row:not([opened]) {
@@ -39,78 +39,207 @@
 }
 
 .usage-role-row > vaadin-details-summary {
-    background: #eaf3f7;
+    background: #fff;
     padding-bottom: 0;
     padding-top: 0;
 }
 
 .usage-role-grid {
-    background: #cfdee5 !important;
-    left: 8px;
-    margin: 8px 0 0;
-    position: relative;
-    width: calc(100% - 16px) !important;
+    background: #e4eaf0 !important;
+    border-radius: 8px;
+    margin: 0;
+    overflow: hidden;
+    width: 100% !important;
 }
 
 .usage-role-name {
-    background: #eaf3f7 !important;
+    background: #f5f9fc !important;
     border-left-width: 0 !important;
 }
 
 .usage-people {
     box-sizing: border-box;
-    gap: 8px !important;
-    padding: 8px 16px 0 !important;
+    gap: 12px !important;
+    padding: 12px 0 0 !important;
     width: 100% !important;
 }
 
 .usage-person-row {
     background: #fff;
     border-radius: 8px;
+    box-shadow: inset 0 0 0 1px #e4eaf0;
 }
 
 .usage-person-row > vaadin-details-summary {
     padding: 0;
 }
 
+.usage-person-row > vaadin-details-summary::part(toggle) {
+    left: 24px;
+}
+
 .usage-person-grid {
-    border: 1px solid #e2e7e9;
+    border: 0;
     border-radius: 8px;
-    box-shadow: 0 1px 2px rgba(15, 70, 96, 0.035);
+    box-shadow: none;
     overflow: hidden;
 }
 
 .usage-person-name {
     background: #fff !important;
+    border-radius: 0;
+    box-shadow: none;
+    margin-left: 0;
+    padding-left: 48px !important;
+    border-left-width: 0 !important;
+}
+
+.usage-row > vaadin-details-summary > .usage-person-grid > .usage-person-name {
+    padding-left: 48px !important;
+}
+
+.usage-content,
+.usage-content * {
+    box-sizing: border-box;
+}
+
+.usage-role-grid > div,
+.usage-person-grid > div,
+.usage-task-grid > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+.usage-role-week,
+.usage-person-week {
+    padding: 12px !important;
+}
+
+.usage-person-name .usage-row-identity > span:last-child {
+    flex: 1 1 auto;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .usage-task-breakdown {
-    background: #f5f7f8;
-    border-radius: 7px;
-    margin: 7px 0 2px;
-    padding: 8px 0 !important;
+    background: #fff;
+    border-radius: 0 0 8px 8px;
+    margin: 0;
+    padding: 12px 0 0 !important;
     width: 100% !important;
 }
 
+.usage-task-empty {
+    background: #fff;
+    border: 0;
+    margin: 0;
+    padding: 16px 48px !important;
+    width: auto !important;
+}
+
 .usage-task-grid {
-    border-radius: 6px;
+    border-radius: 0;
     overflow: hidden;
+}
+
+.usage-task-name,
+.usage-task-total-name {
+    border-radius: 0;
+    margin-left: 0;
+    padding: 12px 12px 12px 48px !important;
+    background: #fff !important;
+}
+
+.usage-task-name > span {
+    white-space: normal !important;
+    overflow: visible !important;
+    line-height: 1.5;
 }
 
 .usage-task-header {
-    border-radius: 6px 6px 0 0;
+    border-radius: 0;
     overflow: hidden;
 }
 
+.usage-task-header > div:first-child {
+    padding-left: 48px !important;
+}
+
 .usage-task-pending {
-    color: #6f818a;
+    color: #65778a;
+    display: block;
+    font-size: 10px;
+    font-weight: 400;
+    line-height: 1.5;
+}
+
+.usage-task-planned {
+    color: var(--app-ink);
+    font-size: 10.5px;
+    font-weight: 700;
+}
+
+.usage-task-effort-equation {
+    background: transparent;
+    border-radius: 0;
+    color: #65778a;
+    display: block;
+    font-size: 9.5px;
+    line-height: 1.35;
+    margin-top: 3px;
+    padding: 2px 0;
+    white-space: normal;
+}
+
+.usage-occupied-headline {
+    align-items: baseline;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.usage-occupied-hours {
+    color: #0f4660;
+    display: block;
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+}
+
+.usage-occupied-label {
+    color: #5b6b74;
     display: block;
     font-size: 9.5px;
     line-height: 1.2;
 }
 
+.usage-occupied-percentage {
+    color: #0f4660;
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.usage-task-total-plan {
+    color: #0f4660;
+    font-size: 10px;
+    font-weight: 800;
+}
+
+.usage-task-total-equation {
+    color: #40545e;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.25;
+}
+
 .usage-task-legend {
-    margin-top: 1px;
+    margin-top: 0;
+    padding: 12px 16px !important;
 }
 
 .usage-row-identity {
@@ -145,167 +274,403 @@
     color: #52636b;
 }
 
-/* Shared visual language for the three POC screens. */
+/* Shared visual language for the full application. */
 :root {
-    --lumo-font-family: Inter, "Helvetica Neue", Arial, system-ui, sans-serif;
+    --lumo-font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    --lumo-font-size-m: 14px;
+    --lumo-body-text-color: #263748;
+    --lumo-secondary-text-color: #5d6d7e;
     --lumo-primary-color: #14658a;
     --lumo-primary-text-color: #0f5f85;
-    --lumo-border-radius-m: 8px;
-    --lumo-border-radius-l: 10px;
-    --app-ink: #1f2a30;
-    --app-muted: #5f6b72;
-    --app-border: #dfe5e8;
-    --app-surface-soft: #f8fafb;
+    --lumo-primary-color-10pct: rgba(20, 101, 138, 0.10);
+    --lumo-primary-color-50pct: rgba(20, 101, 138, 0.50);
+    --lumo-border-radius-s: 6px;
+    --lumo-border-radius-m: 10px;
+    --lumo-border-radius-l: 14px;
+    --lumo-size-m: 40px;
+    --app-ink: #203348;
+    --app-muted: #5d6d7e;
+    --app-border: #dfe6ed;
+    --app-border-strong: #c7d5dc;
+    --app-surface: #ffffff;
+    --app-surface-soft: #f5f8fa;
+    --app-surface-muted: #eef4f6;
+    --app-shadow-sm: 0 2px 4px rgba(22, 42, 64, 0.025);
+    --app-shadow-md: 0 4px 16px rgba(22, 42, 64, 0.045);
+    --app-focus: 0 0 0 3px rgba(20, 101, 138, 0.18);
 }
 
 html,
 body {
-    background: #f6f8f9;
+    background: #f5f7fa;
     color: var(--app-ink);
+    font-family: var(--lumo-font-family);
+    min-height: 100%;
 }
 
 vaadin-app-layout::part(navbar) {
-    background: rgba(255, 255, 255, 0.96);
+    backdrop-filter: blur(14px);
+    background: rgba(255, 255, 255, 0.97);
     border-bottom: 1px solid var(--app-border);
-    box-shadow: 0 1px 3px rgba(15, 70, 96, 0.04);
+    box-shadow: var(--app-shadow-sm);
 }
 
 vaadin-app-layout::part(drawer) {
-    background: var(--app-surface-soft);
-    border-right: 1px solid var(--app-border);
+    background: #152c40;
+    border-right: 1px solid #203b52;
+}
+
+.app-shell {
+    --vaadin-app-layout-drawer-width: 240px;
+}
+
+.app-drawer-brand {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    gap: 10px;
+    min-height: 88px;
+    padding: 20px 18px;
+}
+
+.app-brand-mark {
+    align-items: center;
+    background: #2e728e;
+    border: 1px solid #488ba3;
+    border-radius: 10px;
+    color: #fff;
+    display: flex;
+    flex: 0 0 34px;
+    height: 36px;
+    justify-content: center;
+}
+
+.app-brand-mark vaadin-icon {
+    height: 19px;
+    width: 19px;
+}
+
+.app-brand-copy {
+    color: #f4f8fb;
+    display: flex;
+    flex-direction: column;
+    font-size: 16px;
+    font-weight: 650;
+    gap: 4px;
+}
+
+.app-brand-caption {
+    color: #a7bacb;
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.09em;
 }
 
 .app-header {
     align-items: center;
+    box-sizing: border-box;
     display: flex;
-    gap: 8px;
-    min-height: 58px;
-    padding: 0 18px;
+    gap: 12px;
+    min-height: 64px;
+    padding: 0 22px;
     width: 100%;
 }
 
+.app-header vaadin-drawer-toggle {
+    color: var(--lumo-primary-text-color);
+}
+
 .app-brand-title {
-    color: #143246;
-    font-size: 18px;
-    font-weight: 650;
-    letter-spacing: -0.01em;
+    color: #465c70;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0;
     margin: 0;
 }
 
 .app-navigation {
-    padding: 10px 8px;
+    padding: 8px 12px;
+}
+
+.app-navigation vaadin-side-nav-item {
+    --lumo-secondary-text-color: #9db2c5;
+    font-size: 14px;
+}
+
+.app-navigation vaadin-icon {
+    color: #a7bacb;
+    height: 18px;
+    width: 18px;
+}
+
+.app-navigation vaadin-side-nav-item[current] vaadin-icon {
+    color: #a8e1f0;
 }
 
 .app-navigation vaadin-side-nav-item::part(link) {
     border-radius: 8px;
-    font-weight: 520;
-    min-height: 42px;
+    box-sizing: border-box;
+    color: #ced9e3;
+    font-weight: 500;
+    margin-bottom: 6px;
+    min-height: 44px;
+    padding: 10px 12px;
+    transition: background-color 140ms ease, color 140ms ease, transform 140ms ease;
+}
+
+.app-navigation vaadin-side-nav-item::part(link):hover {
+    background: #203d53;
+    color: #fff;
 }
 
 .app-navigation vaadin-side-nav-item[current]::part(link) {
-    background: #dfeefa;
-    color: #075b86;
-    font-weight: 650;
+    background: #294c63;
+    box-shadow: inset 3px 0 #75c8dc;
+    color: #fff;
+    font-weight: 600;
 }
 
 .app-page {
     box-sizing: border-box;
     gap: 0 !important;
     margin: 0 auto;
-    max-width: 1480px;
-    padding: 26px 28px 48px !important;
+    max-width: 1520px;
+    padding: 30px 32px 56px !important;
     width: 100%;
 }
 
+/* Keep the content centered while allowing the navigation to span the AppLayout content area. */
+.roadmap-page {
+    display: grid !important;
+    grid-template-columns: minmax(32px, 1fr) minmax(0, 1456px) minmax(32px, 1fr);
+    max-width: none;
+    padding: 0 0 56px !important;
+}
+
+.roadmap-page > * {
+    grid-column: 2;
+    min-width: 0;
+}
+
 .page-title {
-    color: #0f4660 !important;
-    font-size: clamp(28px, 3vw, 34px);
-    font-weight: 700 !important;
+    color: #1a354b !important;
+    font-size: clamp(26px, 2.3vw, 32px);
+    font-weight: 650 !important;
     letter-spacing: -0.025em;
-    line-height: 1.15;
-    margin: 0 0 8px;
+    line-height: 1.2;
+    margin: 0 0 10px;
 }
 
 .page-subtitle {
     color: var(--app-muted) !important;
     display: block;
     font-size: 14px !important;
-    line-height: 1.5;
-    margin-bottom: 14px;
-    max-width: 900px;
+    line-height: 1.55;
+    margin-bottom: 24px;
+    max-width: 940px;
 }
 
 .page-toolbar {
     align-items: center;
-    gap: 8px;
+    gap: 12px;
     justify-content: space-between;
-    margin: 0 0 16px;
-    min-height: 38px;
+    margin: 0 0 18px;
+    min-height: 40px;
     padding: 0;
     width: 100%;
 }
 
 .page-toolbar vaadin-button[theme~="tertiary"] {
-    background: #edf4f7;
-    border: 1px solid #dbe7ec;
-    font-weight: 600;
+    background: #fff;
+    border: 1px solid #cedbe5;
+    color: #0f5f85;
+    font-weight: 700;
+}
+
+.planning-filters {
+    min-width: 0;
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.planning-filters vaadin-text-field {
+    width: 180px;
+}
+
+.planning-filters vaadin-combo-box {
+    width: 210px;
+}
+
+.planning-filters vaadin-combo-box:last-child {
+    width: 145px;
 }
 
 .updated-at {
+    margin-left: auto !important;
     color: var(--app-muted);
-    font-size: 12.5px;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
 }
 
 .surface-card,
 .roadmap-section {
-    background: #fff !important;
+    background: var(--app-surface) !important;
     border: 1px solid var(--app-border) !important;
-    border-radius: 10px !important;
-    box-shadow: 0 1px 2px rgba(15, 70, 96, 0.035);
+    border-radius: 14px !important;
+    box-shadow: var(--app-shadow-sm);
 }
 
 .surface-card {
-    padding: 18px !important;
+    gap: 16px !important;
+    padding: 22px !important;
 }
 
 .form-fields {
-    gap: 12px !important;
+    gap: 14px !important;
 }
 
 .form-actions {
-    margin-top: 2px;
+    align-items: center;
+    border-top: 1px solid #e9eef3;
+    box-sizing: border-box;
+    gap: 12px;
+    margin-top: 4px;
+    padding-top: 16px;
+    width: 100%;
 }
 
 .selection-instruction {
     color: #173d52;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     line-height: 1.45;
 }
 
 .planning-form {
-    margin-top: 16px;
+    margin-top: 18px;
+}
+
+.planning-form .form-fields {
+    align-items: start !important;
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    width: 100%;
+}
+
+.planning-form .form-fields > *,
+.absence-form .form-fields > * {
+    min-width: 0 !important;
+    width: 100% !important;
+}
+
+.absence-form .form-fields {
+    align-items: start !important;
+    display: grid !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    width: 100%;
+}
+
+.planning-save-button {
+    flex-shrink: 0;
+    margin: 0;
+}
+
+.planning-actions {
+    align-items: center !important;
+    flex-wrap: wrap;
+    justify-content: space-between;
+}
+
+.planning-actions .effective-stack-preview {
+    margin: 0;
+}
+
+.effective-stack-preview {
+    align-self: flex-start;
+    border: 1px solid rgba(46, 125, 50, 0.12);
+    margin-top: 4px;
 }
 
 .table-toolbar {
-    margin-top: 12px;
+    margin-top: 28px;
+    margin-bottom: 12px;
+}
+
+.section-title {
+    color: #213d52 !important;
+    font-size: 18px !important;
+    font-weight: 650 !important;
+    letter-spacing: -0.015em;
+    line-height: 1.4;
+    margin: 0 !important;
 }
 
 .data-grid {
+    font-size: 14px;
     border: 1px solid var(--app-border);
-    border-radius: 10px;
+    border-radius: 12px;
+    box-shadow: var(--app-shadow-sm);
     overflow: hidden;
 }
 
 .data-grid::part(header-cell) {
-    background: #f3f6f7;
-    color: #284450;
+    background: #f3f6f9;
+    border-bottom-color: var(--app-border-strong);
+    color: #53697a;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 650;
+    letter-spacing: 0.03em;
+}
+
+.data-grid::part(cell) {
+    border-bottom-color: #e7ecef;
+    padding-bottom: 5px;
+    padding-top: 5px;
+}
+
+.data-grid::part(row) {
+    background: #fff;
 }
 
 .data-grid::part(row):hover {
-    background: #f7fbfd;
+    background: #f3f8fa;
+}
+
+.data-grid::part(selected-row-cell) {
+    background: #e6f1f7;
+}
+
+.planning-grid::part(scroller) {
+    overflow-x: scroll;
+    scrollbar-color: var(--app-border-strong) transparent;
+    scrollbar-width: auto;
+}
+
+.planning-grid::part(body-cell) {
+    overflow: visible;
+    white-space: normal;
+}
+
+.planning-grid::part(header-cell) {
+    white-space: normal;
+}
+
+.planning-grid-text {
+    display: block;
+    line-height: 1.4;
+    overflow-wrap: anywhere;
+    padding: 4px 0;
+    white-space: normal;
+}
+
+.planning-grid-hint {
+    align-self: flex-start;
+    color: var(--app-muted);
+    font-size: 12px;
+    font-weight: 400;
+    margin-bottom: 10px;
 }
 
 .absence-grid {
@@ -313,15 +678,39 @@ vaadin-app-layout::part(drawer) {
 }
 
 .visual-legend {
-    background: #fff;
+    background: rgba(255, 255, 255, 0.88);
     border: 1px solid var(--app-border);
-    border-radius: 8px;
-    margin: 0 0 18px !important;
-    padding: 10px 12px;
+    border-radius: 10px;
+    margin: 0 0 20px !important;
+    padding: 11px 14px;
 }
 
 .roadmap-page .page-toolbar {
-    justify-content: flex-start;
+    justify-content: space-between;
+}
+
+.roadmap-page-header {
+    align-items: center;
+    gap: 24px;
+    margin-bottom: 24px;
+}
+
+.page-heading-copy {
+    flex: 1;
+    min-width: 0;
+}
+
+.page-heading-copy .page-subtitle {
+    margin-bottom: 0;
+}
+
+.roadmap-page-header .page-toolbar {
+    align-items: flex-end;
+    flex: 0 0 auto;
+    flex-direction: column;
+    gap: 8px;
+    margin: 0;
+    width: auto;
 }
 
 .roadmap-page .updated-at {
@@ -329,22 +718,33 @@ vaadin-app-layout::part(drawer) {
 }
 
 .roadmap-section-navigation {
-    align-items: center;
     align-self: stretch;
     backdrop-filter: blur(10px);
     background: rgba(255, 255, 255, 0.96);
-    border: 1px solid var(--app-border);
-    border-radius: 9px;
-    box-shadow: 0 4px 14px rgba(15, 70, 96, 0.08);
-    display: flex;
-    gap: 10px;
-    margin: 0 0 14px;
+    border-bottom: 1px solid var(--app-border);
+    box-shadow: var(--app-shadow-md);
+    box-sizing: border-box;
+    grid-column: 1 / -1;
+    margin: 0 0 28px;
     min-width: 0;
-    padding: 7px 9px;
     position: sticky;
+    /* AppLayout's content viewport already starts below its navbar. Applying the navbar
+       height again here creates a gap after client-side route navigation. */
     top: 0;
     width: 100%;
     z-index: 10;
+}
+
+.roadmap-section-navigation-inner {
+    align-items: center;
+    box-sizing: border-box;
+    display: flex;
+    gap: 10px;
+    margin: 0 auto;
+    max-width: 1520px;
+    min-width: 0;
+    padding: 8px 32px;
+    width: 100%;
 }
 
 .roadmap-section-navigation-label {
@@ -368,12 +768,12 @@ vaadin-app-layout::part(drawer) {
 }
 
 .roadmap-section-navigation-link {
-    border-radius: 6px;
+    border-radius: 8px;
     color: #52636b;
     flex: 0 0 auto;
     font-size: 12px;
     font-weight: 650;
-    padding: 7px 10px;
+    padding: 8px 11px;
     text-decoration: none;
     transition: background-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
     white-space: nowrap;
@@ -405,12 +805,112 @@ vaadin-app-layout::part(drawer) {
     scroll-margin-top: 118px;
 }
 
+.unplanned-task-table {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--roadmap-border, #d9e2e7);
+    border-radius: 8px;
+}
+
+.unplanned-task-filters {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin: 4px 0 12px;
+    width: 100%;
+}
+
+.unplanned-task-filters vaadin-text-field {
+    width: 280px;
+}
+
+.unplanned-task-filters vaadin-combo-box {
+    width: 240px;
+}
+
+.unplanned-task-header {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+}
+
+.unplanned-task-card:last-child {
+    border-bottom: 0 !important;
+}
+
 .roadmap-section {
-    padding: 18px !important;
+    padding: 20px !important;
 }
 
 .section-description {
-    line-height: 1.55;
+    line-height: 1.6;
+    max-width: 1180px;
+    margin: 4px 0 12px;
+}
+
+.histogram-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 18px !important;
+    width: 100%;
+}
+
+.histogram-card {
+    background: #fff;
+    border: 1px solid #dfe6ed;
+    border-radius: 12px;
+    box-shadow: 0 2px 5px rgba(22, 42, 64, 0.025);
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+    padding: 18px;
+}
+
+.histogram-person-name {
+    color: #203348;
+    font-size: 14px;
+    font-weight: 650;
+    line-height: 1.5;
+    padding-left: 12px;
+    position: relative;
+}
+
+.histogram-person-name::before {
+    background: var(--histogram-role-color);
+    border-radius: 2px;
+    bottom: 4px;
+    content: "";
+    left: 0;
+    position: absolute;
+    top: 4px;
+    width: 3px;
+}
+
+.histogram-person-summary {
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.6;
+    min-height: 36px;
+    overflow-wrap: anywhere;
+    padding-left: 12px;
+}
+
+.histogram-bars {
+    background: linear-gradient(to top, transparent calc(50% - 1px), #f1f5f8 50%, transparent calc(50% + 1px));
+    gap: 8px !important;
+    margin-top: auto;
+}
+
+.histogram-bar-segment {
+    border-radius: 3px 3px 0 0 !important;
+}
+
+.histogram-capacity-line {
+    opacity: 0.7;
+    z-index: 1;
 }
 
 .epic-legend {
@@ -419,9 +919,9 @@ vaadin-app-layout::part(drawer) {
 
 .gantt-section {
     border-left: 4px solid;
-    border-radius: 12px;
-    gap: 10px !important;
-    padding: 14px 14px 14px 16px !important;
+    border-radius: 14px;
+    gap: 12px !important;
+    padding: 16px 16px 16px 18px !important;
 }
 
 .gantt-role-section {
@@ -448,6 +948,8 @@ vaadin-app-layout::part(drawer) {
 
 .gantt-section-chart {
     background: #fff;
+    border-radius: 10px;
+    box-shadow: none !important;
 }
 
 .inline-error {
@@ -455,7 +957,369 @@ vaadin-app-layout::part(drawer) {
 }
 
 vaadin-button[theme~="primary"] {
-    font-weight: 650;
+    box-shadow: 0 2px 5px rgba(20, 101, 138, 0.18);
+    font-weight: 700;
+}
+
+vaadin-button {
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+vaadin-button[disabled] {
+    cursor: default;
+}
+
+vaadin-button:focus-visible,
+vaadin-text-field:focus-within,
+vaadin-integer-field:focus-within,
+vaadin-combo-box:focus-within,
+vaadin-date-picker:focus-within {
+    border-radius: 10px;
+    box-shadow: var(--app-focus);
+}
+
+vaadin-text-field::part(input-field),
+vaadin-integer-field::part(input-field),
+vaadin-combo-box::part(input-field),
+vaadin-date-picker::part(input-field) {
+    background: #fff;
+    border: 1px solid #d5dfe8;
+    transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease;
+}
+
+vaadin-text-field:hover::part(input-field),
+vaadin-integer-field:hover::part(input-field),
+vaadin-combo-box:hover::part(input-field),
+vaadin-date-picker:hover::part(input-field) {
+    background: #eef3f5;
+    border-color: #d6e1e6;
+}
+
+vaadin-text-field[readonly]::part(input-field) {
+    background: #f5f7fa;
+    border: 1px solid #e3e9ef;
+}
+
+vaadin-text-field[readonly]::part(input-field)::after {
+    border: 0;
+}
+
+vaadin-text-field[invalid]::part(input-field),
+vaadin-integer-field[invalid]::part(input-field),
+vaadin-combo-box[invalid]::part(input-field),
+vaadin-date-picker[invalid]::part(input-field) {
+    background: #fff8f7;
+    border-color: var(--lumo-error-color);
+}
+
+vaadin-text-field[disabled]::part(input-field),
+vaadin-integer-field[disabled]::part(input-field),
+vaadin-combo-box[disabled]::part(input-field),
+vaadin-date-picker[disabled]::part(input-field) {
+    background: #f4f6f7;
+}
+
+.information-page {
+    gap: 18px !important;
+    max-width: 1320px;
+}
+
+/* Example-led Information guide. */
+.information-page p {
+    color: var(--app-muted);
+    font-size: 13px;
+    line-height: 1.65;
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+.information-page h2, .information-page h3 { margin: 0; color: #163c52; }
+.information-page h2 { font-size: 20px; line-height: 1.35; }
+.information-page h3 { font-size: 14px; line-height: 1.5; }
+.information-page .information-hero-copy { display: grid; gap: 12px; }
+.information-guide-section {
+    box-sizing: border-box;
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+    padding: 24px;
+    scroll-margin-top: 90px;
+    width: 100%;
+}
+.information-guide-heading { display: flex; align-items: baseline; gap: 12px; min-width: 0; }
+.information-guide-index { font-size: 11px; color: #6b8597; font-weight: 700; }
+.information-guide-columns { width: 100%; min-width: 0; }
+.information-guide-columns > * { min-width: 0; }
+.information-page .information-example {
+    box-sizing: border-box;
+    border: 1px solid var(--app-border);
+    border-radius: 10px;
+    display: grid;
+    align-content: start;
+    gap: 10px;
+    padding: 20px;
+    background: #ffffff !important;
+    min-width: 0;
+}
+.information-example-value { color: #14658a; font-size: 21px; font-weight: 700; line-height: 1.35; overflow-wrap: anywhere; }
+.information-guide-note { border-left: 3px solid #8db4c5; border-radius: 0 6px 6px 0; padding: 12px 16px; background: #f5f9fb; }
+.information-guide-note h3 { margin-bottom: 5px; }
+.information-contents { display: flex; flex-wrap: wrap; gap: 8px 20px; width: 100%; }
+.information-contents a { font-size: 12px; font-weight: 600; padding: 4px 0; }
+.information-guide-row { display: grid; grid-template-columns: minmax(130px, .8fr) minmax(0, 2fr); gap: 24px; padding: 16px 0; border-bottom: 1px solid #edf1f4; }
+.information-guide-row:first-child { padding-top: 0; }
+.information-guide-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.information-guide-details { width: 100%; margin: 0; border-top: 1px solid var(--app-border); padding-top: 10px; }
+.information-disclosure-body { display: grid; gap: 16px; padding-top: 12px; min-width: 0; }
+.information-page .information-signal-green { border-top: 3px solid #2e7d32; }
+.information-page .information-signal-yellow { border-top: 3px solid #d49b18; }
+.information-page .information-signal-red { border-top: 3px solid #b3261e; }
+@media (max-width: 600px) {
+    .information-guide-section { padding: 20px; }
+    .information-guide-row { grid-template-columns: minmax(0, 1fr); gap: 6px; }
+    .information-guide-heading { align-items: flex-start; }
+    .information-page h2 { font-size: 18px; }
+    .information-example-value { font-size: 20px; }
+}
+
+.information-hero {
+    align-items: flex-start;
+    background:
+            radial-gradient(circle at 92% 18%, rgba(20, 101, 138, 0.12), transparent 26%),
+            linear-gradient(135deg, #ffffff 0%, #eef6f9 100%) !important;
+    border-left: 5px solid #14658a !important;
+    gap: 18px !important;
+    overflow: hidden;
+    padding: 28px !important;
+    position: relative;
+}
+
+.information-hero-copy {
+    gap: 8px !important;
+    min-width: 0;
+}
+
+.information-hero .page-title {
+    margin: 0;
+}
+
+.information-eyebrow {
+    color: #14658a;
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+}
+
+.information-hero-description {
+    font-size: 15px !important;
+    max-width: 940px;
+}
+
+.information-principles {
+    gap: 8px !important;
+    margin-top: 8px;
+}
+
+.information-pill {
+    background: rgba(255, 255, 255, 0.78);
+    border: 1px solid #d2e2e9;
+    border-radius: 999px;
+    color: #315361;
+    font-size: 12px;
+    font-weight: 700;
+    gap: 6px !important;
+    padding: 6px 10px;
+}
+
+.information-pill vaadin-icon {
+    color: #14658a;
+    height: 14px;
+    width: 14px;
+}
+
+.information-icon-badge {
+    align-items: center;
+    background: #dcecf7;
+    border: 1px solid #c4dce8;
+    border-radius: 12px;
+    color: #0f5f85;
+    display: flex;
+    flex: 0 0 auto;
+    height: 46px;
+    justify-content: center;
+    width: 46px;
+}
+
+.information-icon-badge vaadin-icon {
+    height: 22px;
+    width: 22px;
+}
+
+.information-section {
+    gap: 16px !important;
+    padding: 22px !important;
+}
+
+.information-section-header {
+    gap: 10px !important;
+}
+
+.information-section-icon {
+    color: #14658a;
+    height: 20px;
+    width: 20px;
+}
+
+.information-concepts {
+    align-items: stretch;
+    display: grid !important;
+    gap: 16px !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.information-concepts > .information-card {
+    background: linear-gradient(180deg, #ffffff 0%, #f8fbfc 100%) !important;
+    box-shadow: none;
+    height: auto;
+}
+
+.information-concept-card {
+    align-items: flex-start;
+    gap: 10px !important;
+    padding: 18px !important;
+}
+
+.information-concept-icon {
+    border-radius: 10px;
+    height: 40px;
+    width: 40px;
+}
+
+.information-concept-icon vaadin-icon {
+    height: 19px;
+    width: 19px;
+}
+
+.information-section > .information-card {
+    background: #fbfcfd !important;
+    box-shadow: none;
+    padding: 16px !important;
+}
+
+.information-card h2,
+.information-card h3 {
+    line-height: 1.3;
+}
+
+.information-card p {
+    line-height: 1.65;
+}
+
+.information-rule-header {
+    gap: 8px !important;
+}
+
+.information-rule-icon {
+    color: #14658a;
+    height: 18px;
+    width: 18px;
+}
+
+.information-priority-card {
+    gap: 14px !important;
+}
+
+.information-priority-flow {
+    gap: 10px !important;
+    width: 100%;
+}
+
+.information-priority-step {
+    align-items: center;
+    background: #ffffff;
+    border: 1px solid #dce5e9;
+    border-radius: 10px;
+    color: #40545e;
+    display: flex;
+    flex: 1 1 0;
+    font-size: 13px;
+    gap: 9px;
+    min-height: 48px;
+    padding: 10px 12px;
+}
+
+.information-priority-number,
+.information-step-number,
+.information-rule-number {
+    align-items: center;
+    background: #14658a;
+    border-radius: 999px;
+    color: #ffffff;
+    display: inline-flex;
+    flex: 0 0 auto;
+    font-size: 11px;
+    font-weight: 800;
+    height: 24px;
+    justify-content: center;
+    width: 24px;
+}
+
+.information-priority-arrow {
+    color: #8aa2ae;
+    flex: 0 0 auto;
+    font-size: 18px;
+    font-weight: 700;
+}
+
+.information-step-card {
+    align-items: flex-start;
+    background: #fbfcfd !important;
+    border: 1px solid #e0e7ea;
+    border-radius: 11px;
+    box-shadow: none;
+    display: flex;
+    gap: 13px !important;
+    padding: 16px !important;
+    width: 100%;
+}
+
+.information-step-number {
+    background: #e2f0f6;
+    color: #0f5f85;
+    height: 30px;
+    width: 30px;
+}
+
+.information-step-copy {
+    gap: 5px !important;
+    min-width: 0;
+}
+
+.information-quick-grid {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    width: 100%;
+}
+
+.information-quick-rule {
+    align-items: center;
+    background: #f8fbfc;
+    border: 1px solid #e0e7ea;
+    border-radius: 10px;
+    color: #40545e;
+    display: flex;
+    font-size: 13px;
+    gap: 10px;
+    line-height: 1.45;
+    min-height: 50px;
+    padding: 10px 12px;
+}
+
+.information-rule-number {
+    background: #dcecf7;
+    color: #0f5f85;
 }
 
 vaadin-notification-card::part(overlay) {
@@ -464,13 +1328,89 @@ vaadin-notification-card::part(overlay) {
     max-width: min(440px, calc(100vw - 32px));
 }
 
+@media (max-width: 1100px) {
+    .histogram-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .planning-toolbar {
+        flex-wrap: wrap;
+    }
+
+    .planning-form .form-fields,
+    .absence-form .form-fields {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .information-concepts {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .information-priority-flow {
+        align-items: stretch !important;
+        flex-direction: column;
+    }
+
+    .information-priority-arrow {
+        align-self: center;
+        line-height: 1;
+        transform: rotate(90deg);
+    }
+}
+
 @media (max-width: 760px) {
+    .roadmap-page-header {
+        align-items: stretch;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .roadmap-page-header .page-toolbar {
+        align-items: flex-start;
+    }
+
+    .histogram-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .app-header {
+        padding-inline: 12px;
+    }
+
+    .roadmap-page .updated-at {
+        margin-left: 0 !important;
+    }
+
+    .planning-actions {
+        align-items: stretch !important;
+        flex-direction: column;
+    }
+
+    .planning-actions .effective-stack-preview {
+        align-self: stretch;
+    }
+
+    .planning-actions .planning-save-button {
+        margin-top: 0;
+        width: 100%;
+    }
+
+    .app-shell {
+        --vaadin-app-layout-drawer-width: min(86vw, 300px);
+    }
+
     .app-page {
-        padding: 20px 16px 36px !important;
+        padding: 22px 16px 40px !important;
+    }
+
+    .roadmap-page {
+        grid-template-columns: 16px minmax(0, 1fr) 16px;
+        padding: 0 0 40px !important;
     }
 
     .page-title {
-        font-size: 28px;
+        font-size: 29px;
+        line-height: 1.12;
     }
 
     .page-toolbar {
@@ -478,10 +1418,33 @@ vaadin-notification-card::part(overlay) {
         flex-direction: column;
     }
 
+    .planning-toolbar,
+    .planning-filters {
+        align-items: stretch !important;
+    }
+
+    .planning-filters,
+    .planning-filters vaadin-text-field,
+    .planning-filters vaadin-combo-box,
+    .planning-filters vaadin-combo-box:last-child {
+        width: 100%;
+    }
+
+    .unplanned-task-filters,
+    .unplanned-task-filters vaadin-text-field,
+    .unplanned-task-filters vaadin-combo-box {
+        align-items: stretch !important;
+        width: 100%;
+    }
+
     .roadmap-section-navigation {
+        margin: 0 0 22px;
+        width: 100%;
+    }
+
+    .roadmap-section-navigation-inner {
         gap: 4px;
-        margin-bottom: 12px;
-        padding: 6px;
+        padding: 6px 16px;
     }
 
     .roadmap-section-navigation-label {
@@ -494,10 +1457,52 @@ vaadin-notification-card::part(overlay) {
 
     .surface-card,
     .roadmap-section {
-        padding: 14px !important;
+        border-radius: 12px !important;
+        padding: 16px !important;
     }
 
-    .form-fields > * {
-        width: 100% !important;
+    .planning-form .form-fields,
+    .absence-form .form-fields {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .planning-grid {
+        min-height: 120px;
+    }
+
+    .information-section,
+    .information-card {
+        gap: 12px !important;
+    }
+
+    .information-hero {
+        gap: 14px !important;
+        padding: 20px !important;
+    }
+
+    .information-hero > .information-icon-badge {
+        display: none;
+    }
+
+    .information-principles {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .information-pill {
+        width: 100%;
+    }
+
+    .information-concepts {
+        gap: 12px !important;
+    }
+
+    .information-section > .information-card,
+    .information-concepts > .information-card {
+        padding: 15px !important;
+    }
+
+    .information-quick-grid {
+        grid-template-columns: minmax(0, 1fr);
     }
 }

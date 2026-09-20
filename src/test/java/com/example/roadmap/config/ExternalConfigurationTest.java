@@ -70,11 +70,11 @@ class ExternalConfigurationTest {
     }
 
     @Test void jiraFieldIdsMustBeValidAndDifferent() {
-        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "TTAR", null, null,
-                "customfield_1", "customfield_1", "customfield_3", "customfield_4"))
+        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "DEMO", null, null,
+                "customfield_1", "customfield_1", "customfield_2", "customfield_3", "customfield_4"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "TTAR", null, null,
-                "story_points", "customfield_2", "customfield_3", "customfield_4"))
+        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "DEMO", null, null,
+                "story_points", "customfield_2", "customfield_3", "customfield_4", "customfield_5"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("customfield_<number>");
     }

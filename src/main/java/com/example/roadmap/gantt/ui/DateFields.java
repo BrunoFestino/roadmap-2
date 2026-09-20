@@ -8,14 +8,14 @@ final class DateFields {
     private DateFields() {}
 
     static void configure(DatePicker field) {
-        field.setLocale(Locale.forLanguageTag("es-AR"));
+        field.setLocale(Locale.ENGLISH);
         field.setI18n(new DatePicker.DatePickerI18n()
-                .setDateFormat("dd/MM/yyyy")
-                .setMonthNames(List.of("enero", "febrero", "marzo", "abril", "mayo", "junio",
-                        "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"))
-                .setWeekdays(List.of("domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"))
-                .setWeekdaysShort(List.of("dom", "lun", "mar", "mié", "jue", "vie", "sáb"))
-                .setFirstDayOfWeek(1).setToday("Hoy").setCancel("Cancelar"));
-        field.setPlaceholder("dd/mm/aaaa");
+                .setDateFormat("MM/dd/yyyy")
+                .setMonthNames(List.of("January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"))
+                .setWeekdays(List.of("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"))
+                .setWeekdaysShort(List.of("Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"))
+                .setFirstDayOfWeek(1).setToday("Today").setCancel("Cancel"));
+        field.setPlaceholder("mm/dd/yyyy");
     }
 }

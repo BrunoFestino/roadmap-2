@@ -1,15 +1,18 @@
 package com.example.roadmap.gantt.ui;
 
+import com.example.roadmap.gantt.application.dto.GanttChart;
+import com.example.roadmap.gantt.application.dto.GanttGroup;
 import com.example.roadmap.gantt.application.analytics.BuildWorkloadReportUseCase;
 import com.example.roadmap.gantt.application.analytics.PersonWorkload;
+import com.example.roadmap.gantt.application.analytics.LoadSignal;
+import com.example.roadmap.gantt.application.analytics.PlanningWarning;
 import com.example.roadmap.gantt.application.analytics.RoleWorkload;
 import com.example.roadmap.gantt.application.analytics.TaskLoad;
+import com.example.roadmap.gantt.application.analytics.UnplannedReason;
 import com.example.roadmap.gantt.application.analytics.UnplannedTask;
 import com.example.roadmap.gantt.application.analytics.WeekLoad;
 import com.example.roadmap.gantt.application.analytics.WorkloadReport;
 import com.example.roadmap.gantt.application.data.RoadmapSnapshot;
-import com.example.roadmap.gantt.application.dto.GanttChart;
-import com.example.roadmap.gantt.application.dto.GanttGroup;
 import com.example.roadmap.gantt.application.model.EpicPalette;
 import com.example.roadmap.gantt.application.model.GanttTask;
 import com.example.roadmap.gantt.application.model.Role;
@@ -18,22 +21,28 @@ import com.example.roadmap.gantt.application.usecase.BuildPersonGanttUseCase;
 import com.example.roadmap.gantt.application.usecase.BuildRoleGanttUseCase;
 import com.example.roadmap.gantt.ui.style.GanttStyle;
 import com.example.roadmap.gantt.ui.widget.GanttChartWidget;
+import com.example.roadmap.config.JiraProperties;
 import com.example.roadmap.ui.MainLayout;
 import com.vaadin.flow.component.Component;
 import com.vaadin.flow.component.button.Button;
-import com.vaadin.flow.component.dependency.StyleSheet;
-import com.vaadin.flow.component.details.Details;
-import com.vaadin.flow.component.html.Anchor;
+import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.html.Div;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.H2;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.Span;
+import com.vaadin.flow.component.details.Details;
 import com.vaadin.flow.component.orderedlayout.FlexLayout;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
+import com.vaadin.flow.component.tabs.Tab;
+import com.vaadin.flow.component.tabs.Tabs;
+import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
 import com.vaadin.flow.router.RouterLink;
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -48,7 +57,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * Roadmap and workload screen for the AR1 (Argentina) team, loaded straight from Jira.
+ * Roadmap and workload screen for the roadmap team, loaded straight from Jira.
  *
  * <p>It follows Microsoft Project's separation of concerns, because mixing the two is what
  * made the previous version unreadable: a Gantt bar is a <em>commitment in the calendar</em>
@@ -60,50 +69,41 @@ import java.util.stream.Collectors;
  *       expandable to the tasks that produce them.</li>
  *   <li><strong>Histograma de carga</strong> - Resource Graph: weekly bars against each
  *       person's capacity line, with the overflow in red.</li>
- *   <li><strong>Libre desde</strong> - Remaining Availability: who can take new work and
- *       from when.</li>
  *   <li><strong>Roadmap por rol y por persona</strong> - the calendar commitment itself,
  *       both views required by the business.</li>
- *   <li><strong>Tareas sin ventana planificada</strong> - the data-quality tray for work whose
- *       dedication had to be assumed at 100%.</li>
+ *   <li><strong>Necesita atención</strong> - the data-quality tray for tasks missing a
+ *       committed calendar window, an explicit effort estimate, or both.</li>
  * </ol>
  */
 @Route(value = "", layout = MainLayout.class)
 @PageTitle("Team Roadmap")
-@StyleSheet("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap")
 public class RoadmapView extends VerticalLayout {
 
     /** Height of a person's load histogram, in pixels. */
-    private static final int HISTOGRAM_HEIGHT_PX = 72;
+    private static final int HISTOGRAM_HEIGHT_PX = 112;
     /** Width of the leading name column, shared by the header and every grid row. */
-    private static final int USAGE_NAME_COL_PX = 200;
-    /** Visual inset for person and task rows while preserving the role's weekly axis. */
-    private static final int USAGE_NESTED_INSET_PX = 8;
+    private static final int USAGE_NAME_COL_PX = 280;
     private static final DateTimeFormatter MONTH_BAND =
-            DateTimeFormatter.ofPattern("MMMM yyyy", Locale.forLanguageTag("es-AR"));
+            DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
     private static final DateTimeFormatter DAY_MONTH_SHORT =
-            DateTimeFormatter.ofPattern("MMM", Locale.forLanguageTag("es-AR"));
-
-    private static final DateTimeFormatter AVAILABILITY_DATE =
-            DateTimeFormatter.ofPattern("EEEE d 'de' MMMM", Locale.forLanguageTag("es-AR"));
+            DateTimeFormatter.ofPattern("MMM", Locale.ENGLISH);
 
     private static final String SECTION_LOAD = "roadmap-load";
     private static final String SECTION_HISTOGRAM = "roadmap-histogram";
-    private static final String SECTION_AVAILABILITY = "roadmap-availability";
     private static final String SECTION_BY_ROLE = "roadmap-by-role";
     private static final String SECTION_BY_PERSON = "roadmap-by-person";
     private static final String SECTION_UNPLANNED = "roadmap-unplanned";
     private static final List<SectionDestination> SECTION_DESTINATIONS = List.of(
-            new SectionDestination(SECTION_LOAD, "Carga"),
-            new SectionDestination(SECTION_HISTOGRAM, "Histograma"),
-            new SectionDestination(SECTION_AVAILABILITY, "Libre desde"),
-            new SectionDestination(SECTION_BY_ROLE, "Por rol"),
-            new SectionDestination(SECTION_BY_PERSON, "Por persona"),
-            new SectionDestination(SECTION_UNPLANNED, "Sin fechas"));
+            new SectionDestination(SECTION_LOAD, "Workload"),
+            new SectionDestination(SECTION_HISTOGRAM, "Histogram"),
+            new SectionDestination(SECTION_BY_ROLE, "By role"),
+            new SectionDestination(SECTION_BY_PERSON, "By person"),
+            new SectionDestination(SECTION_UNPLANNED, "Needs attention"));
 
     private final transient BuildRoleGanttUseCase buildRoleGantt;
     private final transient BuildPersonGanttUseCase buildPersonGantt;
     private final transient BuildWorkloadReportUseCase buildWorkloadReport;
+    private final transient JiraProperties jiraProperties;
 
     private final Span updatedAt = new Span();
     private final Div legend = new Div();
@@ -112,35 +112,50 @@ public class RoadmapView extends VerticalLayout {
     private final Div footnote = new Div();
 
     public RoadmapView(BuildRoleGanttUseCase buildRoleGantt, BuildPersonGanttUseCase buildPersonGantt,
-                       BuildWorkloadReportUseCase buildWorkloadReport) {
+                       BuildWorkloadReportUseCase buildWorkloadReport, JiraProperties jiraProperties) {
         this.buildRoleGantt = buildRoleGantt;
         this.buildPersonGantt = buildPersonGantt;
         this.buildWorkloadReport = buildWorkloadReport;
+        this.jiraProperties = jiraProperties;
 
         addClassNames("app-page", "roadmap-page");
         setPadding(true);
         setSpacing(true);
         getStyle().set("font-family", GanttStyle.FONT).set("color", GanttStyle.INK);
 
-        results.getStyle().set("margin-top", "12px").set("width", "100%")
+        results.getStyle().set("width", "100%")
                 .set("display", "flex").set("flex-direction", "column").set("gap", "24px");
 
-        Button reload = new Button("Actualizar roadmap", e -> render());
+        Button reload = new Button("Refresh roadmap", e -> render());
         reload.addThemeVariants(com.vaadin.flow.component.button.ButtonVariant.LUMO_TERTIARY);
         HorizontalLayout toolbar = new HorizontalLayout(reload, updatedAt);
         toolbar.addClassName("page-toolbar");
         updatedAt.addClassName("updated-at");
         configureSectionNavigation();
-        add(title(), subtitle(), toolbar, sectionNavigation, legend, results, footnote);
+        VerticalLayout titleBlock = new VerticalLayout(title(), subtitle());
+        titleBlock.setPadding(false);
+        titleBlock.setSpacing(false);
+        titleBlock.addClassName("page-heading-copy");
+        HorizontalLayout pageHeader = new HorizontalLayout(titleBlock, toolbar);
+        pageHeader.addClassName("roadmap-page-header");
+        pageHeader.setWidthFull();
+        add(sectionNavigation, pageHeader, legend, results, footnote);
         render();
     }
 
     private void configureSectionNavigation() {
         sectionNavigation.addClassName("roadmap-section-navigation");
+        sectionNavigation.getStyle()
+                .set("position", "sticky")
+                .set("top", "0")
+                .set("z-index", "20");
         sectionNavigation.getElement().setAttribute("role", "navigation");
-        sectionNavigation.getElement().setAttribute("aria-label", "Secciones del roadmap");
+        sectionNavigation.getElement().setAttribute("aria-label", "Roadmap sections");
 
-        Span label = new Span("Ir a");
+        Div inner = new Div();
+        inner.addClassName("roadmap-section-navigation-inner");
+
+        Span label = new Span("Go to");
         label.addClassName("roadmap-section-navigation-label");
         Div links = new Div();
         links.addClassName("roadmap-section-navigation-links");
@@ -154,7 +169,8 @@ public class RoadmapView extends VerticalLayout {
             }
             links.add(link);
         }
-        sectionNavigation.add(label, links);
+        inner.add(label, links);
+        sectionNavigation.add(inner);
     }
 
     private void installSectionNavigationBehavior() {
@@ -270,7 +286,7 @@ public class RoadmapView extends VerticalLayout {
     }
 
     private Span subtitle() {
-        Span span = new Span("Equipo AR1 · Jira y planificación local · capacidad sobre tareas fechadas");
+        Span span = new Span("Example team · Jira and local planning · capacity across scheduled tasks");
         span.addClassName("page-subtitle");
         span.getStyle().set("color", GanttStyle.MUTED).set("font-size", "14px");
         return span;
@@ -286,15 +302,14 @@ public class RoadmapView extends VerticalLayout {
             GanttChart roleChart = buildRoleGantt.build(snapshot.tasks(), snapshot.milestones());
             GanttChart personChart = buildPersonGantt.build(snapshot.tasks(), snapshot.milestones());
             WorkloadReport workload = buildWorkloadReport.build(snapshot, LocalDate.now());
-            updatedAt.setText("Actualizado: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("dd/MM/yyyy HH:mm:ss")));
+            updatedAt.setText("Updated: " + LocalDateTime.now().format(DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm:ss")));
 
             results.add(resourceUsageSection(workload));
             results.add(loadHistogramSection(workload));
-            results.add(freeFromSection(workload));
 
-            results.add(epicLegend(roleChart));
-            results.add(ganttSection(SECTION_BY_ROLE, "Roadmap - Por rol", roleChart, "gantt-role-section"));
-            results.add(ganttSection(SECTION_BY_PERSON, "Roadmap - Por persona", personChart, "gantt-person-section"));
+            results.add(initiativeLegend(roleChart));
+            results.add(ganttSection(SECTION_BY_ROLE, "Roadmap - By role", roleChart, "gantt-role-section"));
+            results.add(ganttSection(SECTION_BY_PERSON, "Roadmap - By person", personChart, "gantt-person-section"));
 
             results.add(unplannedSection(workload));
             renderFootnote(roleChart);
@@ -311,19 +326,25 @@ public class RoadmapView extends VerticalLayout {
      * are merely colourful: a manager can see that two tasks belong together but not to
      * which initiative, which is the whole point of colouring them by epic.
      */
-    private Component epicLegend(GanttChart chart) {
+    private Component initiativeLegend(GanttChart chart) {
         Map<String, String> names = new LinkedHashMap<>();
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (GanttGroup group : chart.groups()) {
             for (GanttTask task : group.tasks()) {
-                String epic = task.effectiveEpicKey();
-                String label = epic == null ? EpicPalette.UNASSIGNED_LABEL : epic;
-                counts.merge(label, 1, Integer::sum);
-                if (epic != null && epic.equals(task.key())) {
-                    names.put(label, task.summary());
+                if (task.isEpic()) {
+                    names.put(task.key(), task.summary());
+                    counts.putIfAbsent(task.key(), 0);
+                    continue;
                 }
+                String initiative = task.initiativeKey();
+                String label = initiative == null ? EpicPalette.UNASSIGNED_LABEL : initiative;
+                counts.merge(label, 1, Integer::sum);
             }
         }
+        chart.milestones().forEach(milestone -> {
+            names.put(milestone.key(), milestone.name());
+            counts.putIfAbsent(milestone.key(), 0);
+        });
         if (counts.isEmpty()) {
             return new Div();
         }
@@ -335,7 +356,7 @@ public class RoadmapView extends VerticalLayout {
                 .set("background", GanttStyle.WEEKEND_BG).set("border", "1px solid " + GanttStyle.BORDER)
                 .set("border-radius", "8px").set("padding", "9px 12px");
 
-        Span intro = new Span("Colores por épica:");
+        Span intro = new Span("Colors by initiative:");
         intro.getStyle().set("font-weight", "700").set("color", GanttStyle.INK);
         legend.add(intro);
 
@@ -356,6 +377,7 @@ public class RoadmapView extends VerticalLayout {
 
     private H2 sectionTitle(String text) {
         H2 h2 = new H2(text);
+        h2.addClassName("section-title");
         h2.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-size", "16px")
                 .set("font-weight", "700").set("margin", "0 0 4px");
         return h2;
@@ -369,12 +391,13 @@ public class RoadmapView extends VerticalLayout {
         VerticalLayout section = compactLayout();
         section.addClassNames("gantt-section", className);
         section.setId(sectionId);
+        section.getStyle().set("scroll-margin-top", "136px");
         section.add(heading, gantt);
         return section;
     }
 
     private String formatShortDate(LocalDate date) {
-        return date == null ? "sin fecha" : date.format(DateTimeFormatter.ofPattern("d MMM yyyy", Locale.forLanguageTag("es-AR")));
+        return date == null ? "no date" : date.format(DateTimeFormatter.ofPattern("MMM d, yyyy", Locale.ENGLISH));
     }
 
     // ── carga del equipo (Resource Usage) ────────────────────────────────────────
@@ -386,8 +409,13 @@ public class RoadmapView extends VerticalLayout {
      */
     private Component resourceUsageSection(WorkloadReport workload) {
         VerticalLayout content = compactLayout();
-        content.getStyle().set("gap", "10px").set("min-width", "1120px");
-        content.add(weekHeader(workload.weekStarts(), workload.asOf(), "Rol / persona", "plan y capacidad semanal"));
+        content.addClassName("usage-content");
+        content.getStyle().set("gap", "16px").set("min-width",
+                (USAGE_NAME_COL_PX + workload.weekStarts().size() * 145) + "px");
+        if (!workload.subtaskOverrunWarnings().isEmpty()) {
+            content.add(subtaskOverrunAlert(workload.subtaskOverrunWarnings()));
+        }
+        content.add(weekHeader(workload.weekStarts(), workload.asOf(), "Role / person", "weekly plan and capacity"));
 
         boolean anyone = false;
         for (RoleWorkload role : workload.roles()) {
@@ -399,21 +427,15 @@ public class RoadmapView extends VerticalLayout {
             content.add(roleUsageRow(role, people, workload.weekStarts(), workload.asOf()));
         }
         if (!anyone) {
-            content.add(emptyNote("No hay personas con carga planificada."));
+            content.add(emptyNote("No people have planned workload."));
         } else {
             content.add(usageLegend());
         }
 
-        return executiveSection(SECTION_LOAD, "Carga del equipo",
-                "Tres niveles de zoom sobre la misma grilla: el rol resume a toda su gente, cada persona resume sus "
-                        + "tareas, y cada tarea muestra en qué semanas pesa. El esfuerzo se reparte a lo largo de la "
-                        + "ventana planificada en vez de asumir dedicación completa, y se mide contra las horas realmente "
-                        + "disponibles (6 h productivas por día hábil, descontando ausencias). El reparto está "
-                        + "nivelado por persona y comprueba asignaciones alternativas dentro de las fechas comprometidas. "
-                        + "El rojo muestra sobrecarga de la distribución calculada. "
-                        + "En la semana ya empezada lo que queda libre se calcula sobre el trabajo todavía pendiente "
-                        + "-el estimado menos las horas registradas en Jira- y no sobre el supuesto de que lo "
-                        + "planificado se hizo.",
+        return executiveSection(SECTION_LOAD, "Team workload",
+                "Assigned versus available hours by role, person, and week. Expand a person to inspect their tasks. "
+                        + "Effort is distributed and leveled within committed dates without assuming full dedication. "
+                        + "Capacity uses 6 productive hours per business day and subtracts absences.",
                 scrollable(content));
     }
 
@@ -444,20 +466,21 @@ public class RoadmapView extends VerticalLayout {
         Details details = new Details(grid, inner);
         details.addClassNames("usage-row", "usage-role-row");
         details.setOpened(true);
-        details.getStyle().set("width", "100%");
-        details.getElement().getStyle().set("--lumo-space-m", "6px");
+        details.getStyle().set("width", "100%").set("padding", "0");
+        details.getElement().getStyle().set("--lumo-space-m", "0px");
         return details;
     }
 
     private Div roleNameCell(RoleWorkload role, List<PersonWorkload> people, List<WeekLoad> roleWeeks) {
         Span name = new Span(role.roleLabel());
         name.getStyle().set("font-size", "13px").set("font-weight", "800").set("color", GanttStyle.PRIMARY_900);
-        Div identity = new Div(levelChip("ROL", "usage-role-chip"), name);
+        Div identity = new Div(name);
         identity.addClassName("usage-row-identity");
+        identity.getStyle().set("display", "flex").set("align-items", "center");
 
         double weeklyCapacity = roleWeeks.isEmpty() ? 0 : roleWeeks.get(roleWeeks.size() - 1).capacityHours();
-        Span detail = new Span(people.size() + (people.size() == 1 ? " persona" : " personas")
-                + " · " + formatHours(weeklyCapacity) + " h/semana");
+        Span detail = new Span(people.size() + (people.size() == 1 ? " person" : " people")
+                + " · " + formatHours(weeklyCapacity) + " h/week");
         detail.getStyle().set("font-size", "10.5px").set("color", GanttStyle.MUTED);
 
         Div cell = new Div(identity, detail);
@@ -475,12 +498,14 @@ public class RoadmapView extends VerticalLayout {
      */
     private Div roleWeekCell(RoleWorkload role, List<PersonWorkload> people, WeekLoad week, int index) {
         Div cell = new Div();
+        cell.addClassName("usage-role-week");
+        cell.getElement().setAttribute("data-load-level", week.loadSignal().name());
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("gap", "3px").set("background", loadBackground(week))
                 .set("padding", "8px").set("min-height", "50px").set("min-width", "0");
 
         if (week.unavailable()) {
-            cell.add(mutedLine("Sin capacidad", true));
+            cell.add(mutedLine("No capacity", true));
             return cell;
         }
 
@@ -498,15 +523,17 @@ public class RoadmapView extends VerticalLayout {
                 .filter(person -> index < person.weeks().size() && person.weeks().get(index).overallocated())
                 .count();
         if (over > 0) {
-            cell.add(warningChip(over + " de " + people.size() + " pasado"));
+            boolean critical = people.stream().anyMatch(person -> index < person.weeks().size()
+                    && person.weeks().get(index).loadSignal() == LoadSignal.RED);
+            cell.add(warningChip(over + " of " + people.size() + " overallocated", critical));
         }
         cell.add(riskChip(week));
 
-        cell.getElement().setAttribute("title", role.roleLabel() + " · semana del "
-                + formatShortDate(week.weekStart()) + " al " + formatShortDate(week.weekEnd())
-                + "\n" + formatHours(week.assignedHours()) + " h comprometidas de "
-                + formatHours(week.capacityHours()) + " h del rol"
-                + "\n" + people.size() + " personas · " + over + " sobreasignadas");
+        cell.getElement().setAttribute("title", role.roleLabel() + " · week "
+                + formatShortDate(week.weekStart()) + " to " + formatShortDate(week.weekEnd())
+                + "\n" + formatHours(week.assignedHours()) + " committed h of "
+                + formatHours(week.capacityHours()) + " role h"
+                + "\n" + people.size() + " people · " + over + " overallocated");
         return cell;
     }
 
@@ -521,10 +548,10 @@ public class RoadmapView extends VerticalLayout {
     private Span balanceLine(WeekLoad week) {
         boolean over = week.overallocated();
         Span line = new Span(over
-                ? "excede por " + formatHours(week.overflowHours()) + " h"
-                : formatHours(week.freeHours()) + " h libres");
+                ? "over by " + formatHours(week.overflowHours()) + " h"
+                : formatHours(week.freeHours()) + " h available");
         line.getStyle().set("font-size", "11px").set("font-weight", "800")
-                .set("color", over ? "#B3261E" : "#1E7A45")
+                .set("color", loadTextColor(week))
                 .set("line-height", "1.25").set("overflow-wrap", "anywhere");
         return line;
     }
@@ -533,7 +560,7 @@ public class RoadmapView extends VerticalLayout {
     private Span mdLine(WeekLoad week) {
         Span line = new Span(week.freeHours() <= 0
                 ? ""
-                : "≈ " + formatMd(WorkContour.toMd(week.freeHours())) + " MD libres");
+                : "≈ " + formatMd(WorkContour.toMd(week.freeHours())) + " MD available");
         line.getStyle().set("font-size", "9.5px").set("color", "#9AA4AA").set("line-height", "1.2");
         return line;
     }
@@ -547,18 +574,53 @@ public class RoadmapView extends VerticalLayout {
         if (!week.hasCarriedOverWork()) {
             return new Span();
         }
-        Span chip = new Span("⚠ " + formatHours(week.carriedOverHours()) + " h arrastradas");
+        Span chip = new Span("⚠ " + formatHours(week.carriedOverHours()) + " h carried over");
         chip.getStyle().set("font-size", "9.5px").set("font-weight", "700").set("color", "#A16207")
                 .set("line-height", "1.2").set("overflow-wrap", "anywhere");
         return chip;
     }
 
-    private Span warningChip(String text) {
+    private Span warningChip(String text, boolean critical) {
         Span chip = new Span(text);
-        chip.getStyle().set("font-size", "9.5px").set("font-weight", "800").set("color", "#B3261E")
-                .set("background", "#FDECEA").set("border-radius", "999px").set("padding", "1px 7px")
+        chip.getStyle().set("font-size", "9.5px").set("font-weight", "800")
+                .set("color", critical ? "#B3261E" : "#765100")
+                .set("background", critical ? "#FDECEA" : "#FFF4D6").set("border-radius", "999px").set("padding", "1px 7px")
                 .set("align-self", "flex-start");
         return chip;
+    }
+
+    /**
+     * Banner shown above "Carga del equipo" when one or more parent tasks have Sub-tasks
+     * exceeding the parent's budget. Explicit local estimates are preserved; only
+     * unestimated subtasks share available budget. An overrun is surfaced, not hidden.
+     */
+    private Component subtaskOverrunAlert(List<PlanningWarning> overruns) {
+        VerticalLayout alert = compactLayout();
+        alert.addClassName("subtask-overrun-alert");
+        alert.getStyle().set("gap", "4px").set("width", "100%").set("box-sizing", "border-box")
+                .set("padding", "10px 14px").set("border-radius", "8px")
+                .set("background", "#FDECEA").set("border", "1px solid #F3C7C2");
+
+        Span title = new Span("⚠ Subtasks exceed the parent estimate (" + overruns.size()
+                + (overruns.size() == 1 ? " task)" : " tasks)"));
+        title.getStyle().set("font-size", "12px").set("font-weight", "800").set("color", "#B3261E");
+        alert.add(title);
+
+        for (PlanningWarning overrun : overruns) {
+            Anchor key = new Anchor(jiraIssueUrl(overrun.taskKey()), overrun.taskKey());
+            key.setTarget("_blank");
+            key.getElement().setAttribute("rel", "noopener noreferrer");
+            key.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
+
+            Span line = new Span(overrun.summary() + " (" + overrun.assigneeName() + ") - " + overrun.reason());
+            line.getStyle().set("font-size", "11px").set("color", "#7A2E27");
+
+            Div row = new Div(key, line);
+            row.getStyle().set("display", "flex").set("gap", "8px").set("align-items", "baseline")
+                    .set("flex-wrap", "wrap");
+            alert.add(row);
+        }
+        return alert;
     }
 
     private Span mutedLine(String text, boolean strong) {
@@ -601,13 +663,12 @@ public class RoadmapView extends VerticalLayout {
 
     /** One column template, reused by the header and every row, so the columns actually line up. */
     private String gridTemplate(int weeks) {
-        return USAGE_NAME_COL_PX + "px repeat(" + weeks + ", minmax(86px, 1fr))";
+        return USAGE_NAME_COL_PX + "px repeat(" + weeks + ", minmax(144px, 1fr))";
     }
 
     /** Keeps nested week columns aligned after their container receives a visual inset. */
     private String nestedGridTemplate(int weeks) {
-        return (USAGE_NAME_COL_PX - USAGE_NESTED_INSET_PX)
-                + "px repeat(" + weeks + ", minmax(86px, 1fr))";
+        return gridTemplate(weeks);
     }
 
     private Div monthBandCell(String text, int span, boolean first) {
@@ -641,7 +702,7 @@ public class RoadmapView extends VerticalLayout {
         grid.getStyle().set("display", "grid").set("grid-template-columns", nestedGridTemplate(weekStarts.size()))
                 .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
 
-        grid.add(headerCornerCell("Tareas de la persona", "ventana · esfuerzo · dedicación"));
+        grid.add(headerCornerCell("Person tasks", "window · effort · dedication"));
         LocalDate currentWeek = asOf.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
         for (int week = 0; week < weekStarts.size(); week++) {
             grid.add(weekHeaderCell(weekStarts.get(week), week + 1, weekStarts.get(week).equals(currentWeek)));
@@ -650,7 +711,7 @@ public class RoadmapView extends VerticalLayout {
     }
 
     private Div weekHeaderCell(LocalDate weekStart, int number, boolean current) {
-        Span tag = new Span("S" + number + (current ? " · hoy" : ""));
+        Span tag = new Span("W" + number + (current ? " · today" : ""));
         tag.getStyle().set("display", "block").set("font-size", "9.5px").set("font-weight", "800")
                 .set("letter-spacing", "0.6px").set("color", current ? GanttStyle.TODAY : "#9AA4AA");
         Span range = new Span(weekRange(weekStart));
@@ -684,16 +745,16 @@ public class RoadmapView extends VerticalLayout {
                 .set("background", GanttStyle.WEEKEND_BG).set("border", "1px solid " + GanttStyle.BORDER)
                 .set("border-radius", "8px").set("padding", "9px 12px").set("margin-top", "4px");
 
-        legend.add(legendText("Cada cuadrado", "una semana de un rol o de una persona"));
-        legend.add(legendText("Disponible", "días hábiles × 6 h − ausencias"));
-        legend.add(legendText("El %", "sobre la semana completa, para poder comparar semanas"));
-        legend.add(legendText("Horas libres", "lo que todavía entra, contando solo de hoy en adelante"));
-        legend.add(legendText("Pendiente", "estimado − horas realmente registradas en Jira"));
-        legend.add(legendText("⚠ arrastradas", "trabajo de días ya pasados que no se registró y sigue debiéndose"));
-        legend.add(legendSwatch("#F1F8F2", "Con margen · menos del 80%"));
-        legend.add(legendSwatch("#FFF6E5", "Al límite · 80–100%"));
-        legend.add(legendSwatch("#FDECEA", "Sobreasignado · más del 100%"));
-        legend.add(legendSwatch(GanttStyle.GRIDLINE, "Ausente · sin capacidad"));
+        legend.add(legendText("Each square", "one week for a role or person"));
+        legend.add(legendText("Assigned", "task hours assigned during the week"));
+        legend.add(legendText("Available", "business days × 6 productive h, minus absences"));
+        legend.add(legendText("Percentage", "assigned hours ÷ available hours"));
+        legend.add(legendText("Carried-over hours",
+                "work planned for elapsed days that has not yet been logged in Jira"));
+        legend.add(legendSwatch(loadBackground(LoadSignal.GREEN), "Within capacity · up to 6 h/day avg."));
+        legend.add(legendSwatch(loadBackground(LoadSignal.YELLOW), "Above capacity · over 6 to 8 h/day avg."));
+        legend.add(legendSwatch(loadBackground(LoadSignal.RED), "Critical · over 8 h/day avg."));
+        legend.add(legendSwatch(GanttStyle.GRIDLINE, "Absent · no capacity"));
         return legend;
     }
 
@@ -721,7 +782,7 @@ public class RoadmapView extends VerticalLayout {
     private Component personUsageRow(PersonWorkload person, List<LocalDate> weekStarts, LocalDate asOf) {
         Div grid = new Div();
         grid.addClassName("usage-person-grid");
-        grid.getStyle().set("display", "grid").set("grid-template-columns", nestedGridTemplate(weekStarts.size()))
+        grid.getStyle().set("display", "grid").set("grid-template-columns", gridTemplate(weekStarts.size()))
                 .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
 
         grid.add(usageNameCell(person));
@@ -731,20 +792,20 @@ public class RoadmapView extends VerticalLayout {
 
         Details details = new Details(grid, taskBreakdown(person, asOf));
         details.addClassNames("usage-row", "usage-person-row");
-        details.getStyle().set("width", "100%");
-        details.getElement().getStyle().set("--lumo-space-m", "6px");
+        details.getStyle().set("width", "100%").set("padding", "0");
+        details.getElement().getStyle().set("--lumo-space-m", "0px");
         return details;
     }
 
     private Div usageNameCell(PersonWorkload person) {
         Span name = new Span(person.name());
         name.getStyle().set("font-size", "12.5px").set("font-weight", "600").set("color", GanttStyle.PRIMARY_900);
-        Div identity = new Div(levelChip("PERSONA", "usage-person-chip"), name);
+        Div identity = new Div(name);
         identity.addClassName("usage-row-identity");
         Span role = new Span(person.roleLabel()
-                + (person.hasOverallocation() ? " · sobreasignado" : ""));
+                + (person.hasOverallocation() ? " · overallocated" : ""));
         role.getStyle().set("font-size", "11px")
-                .set("color", person.hasOverallocation() ? "#B3261E" : GanttStyle.MUTED);
+                .set("color", person.hasOverallocation() ? signalTextColor(person.loadSignal()) : GanttStyle.MUTED);
 
         Div cell = new Div(identity, role);
         cell.addClassName("usage-person-name");
@@ -758,62 +819,50 @@ public class RoadmapView extends VerticalLayout {
      * One week of one person. The utilization percentage is the headline because the question a
      * manager scans for is "is this past the line?", the fill bar answers it without reading a
      * number at all - colour is never the only signal - and the raw hours stay underneath as the
-     * evidence. Past 100% the bar fills completely in red, so an overallocation reads as a
-     * bar that overflowed rather than as a slightly different shade of background.
+     * evidence. Above the six-hour baseline it is yellow; above eight hours per available
+     * day it is red. The percentage still uses productive capacity as its denominator.
      */
     private Div usageWeekCell(PersonWorkload person, WeekLoad week) {
         Div cell = new Div();
+        cell.addClassName("usage-person-week");
+        cell.getElement().setAttribute("data-load-level", week.loadSignal().name());
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
-                .set("gap", "3px").set("background", loadBackground(week))
-                .set("padding", "8px").set("min-height", "50px").set("min-width", "0");
+                .set("gap", "6px").set("background", loadBackground(week))
+                .set("padding", "10px").set("min-height", "82px").set("min-width", "0");
 
         if (week.unavailable()) {
-            Span headline = new Span("Ausente");
+            Span headline = new Span("Absent");
             headline.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", "#9AA4AA")
                     .set("line-height", "1");
-            Span detail = new Span("0 h disponibles");
+            Span detail = new Span("0 h available");
             detail.getStyle().set("font-size", "10px").set("color", GanttStyle.MUTED).set("line-height", "1.25");
             cell.add(headline, detail);
         } else {
-            Span headline = new Span(Math.round(week.utilizationPct()) + "%");
-            headline.getStyle().set("font-size", "13px").set("font-weight", "800")
-                    .set("line-height", "1").set("color", loadTextColor(week));
-
-            Span detail = new Span(formatHours(week.assignedHours()) + " / "
+            Span hours = new Span(formatHours(week.assignedHours()) + " / "
                     + formatHours(week.capacityHours()) + " h");
-            detail.getStyle().set("font-size", "10px").set("color", GanttStyle.MUTED).set("line-height", "1.25");
+            hours.addClassName("usage-occupied-hours");
+            Span label = new Span("assigned");
+            label.addClassName("usage-occupied-label");
+            Span percentage = new Span(Math.round(week.utilizationPct()) + "%");
+            percentage.addClassName("usage-occupied-percentage");
 
-            cell.add(headline, loadFillBar(week), detail, balanceLine(week));
-            if (week.partiallyElapsed() && week.hasTimeLeft()) {
-                cell.add(mutedLine("quedan " + week.remainingWorkingDays()
-                        + (week.remainingWorkingDays() == 1 ? " día" : " días"), false));
-            }
-            cell.add(riskChip(week));
+            Div headline = new Div(new Div(hours, label), percentage);
+            headline.addClassName("usage-occupied-headline");
+            cell.add(headline, loadFillBar(week));
         }
 
-        cell.getElement().setAttribute("title", person.name() + " · semana del " + formatShortDate(week.weekStart())
-                + " al " + formatShortDate(week.weekEnd())
-                + "\n" + formatHours(week.assignedHours()) + " h asignadas de "
-                + formatHours(week.capacityHours()) + " h disponibles"
-                + (week.overallocated()
-                ? "\nExcede por " + formatHours(week.overflowHours()) + " h"
-                : "\nLibres de hoy en adelante: " + formatHours(week.freeHours()) + " h")
-                + (week.partiallyElapsed()
-                ? "\nSemana ya empezada: quedan " + week.remainingWorkingDays() + " días hábiles ("
-                + formatHours(week.remainingCapacityHours()) + " h) con "
-                + formatHours(week.remainingAssignedHours()) + " h de trabajo pendiente"
-                : "")
-                + (week.hasCarriedOverWork()
-                ? "\nArrastra " + formatHours(week.carriedOverHours())
-                + " h de días ya pasados sin registrar"
-                : "")
-                + "\n" + week.tasks().size() + " tareas");
+        cell.getElement().setAttribute("title", person.name() + " · week " + formatShortDate(week.weekStart())
+                + " to " + formatShortDate(week.weekEnd())
+                + "\n" + formatHours(week.assignedHours()) + " assigned h of "
+                + formatHours(week.capacityHours()) + " available h"
+                + "\nUtilization: " + Math.round(week.utilizationPct()) + "%"
+                + "\n" + week.tasks().size() + " tasks");
         return cell;
     }
 
     /**
      * Utilization drawn as a filled track. It saturates at 100% so an overallocated week shows a
-     * completely full red bar plus the overflow hours in the caption, instead of a bar that would
+     * completely full warning bar plus the overflow hours in the caption, instead of a bar that would
      * have to grow past its own container.
      */
     private Div loadFillBar(WeekLoad week) {
@@ -826,7 +875,7 @@ public class RoadmapView extends VerticalLayout {
 
         Div track = new Div(fill);
         track.getStyle().set("height", "4px").set("border-radius", "2px").set("overflow", "hidden")
-                .set("background", week.overallocated() ? "rgba(179,38,30,0.18)" : "rgba(0,0,0,0.09)");
+                .set("background", "rgba(0,0,0,0.09)");
         return track;
     }
 
@@ -854,15 +903,15 @@ public class RoadmapView extends VerticalLayout {
 
         if (tasks.isEmpty()) {
             VerticalLayout empty = compactLayout();
-            empty.addClassName("usage-task-breakdown");
-            empty.getStyle().set("padding", "6px 0 6px 12px");
-            empty.add(emptyNote("Sin tareas planificadas en el horizonte."));
+            empty.addClassNames("usage-task-breakdown", "usage-task-empty");
+            empty.getStyle().set("padding", "10px 12px 10px 48px");
+            empty.add(emptyNote("No tasks are planned within the horizon."));
             return empty;
         }
 
         Div grid = new Div();
         grid.addClassName("usage-task-grid");
-        grid.getStyle().set("display", "grid").set("grid-template-columns", nestedGridTemplate(weekStarts.size()))
+        grid.getStyle().set("display", "grid").set("grid-template-columns", gridTemplate(weekStarts.size()))
                 .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
 
         List<TaskLoad> ordered = tasks.values().stream()
@@ -899,9 +948,9 @@ public class RoadmapView extends VerticalLayout {
                 .set("gap", "6px 16px").set("font-size", "11px").set("color", GanttStyle.MUTED)
                 .set("padding", "6px 2px");
 
-        legend.add(legendSwatch("#EAF2F6", "La tarea está viva esa semana"));
-        legend.add(legendSwatch("#FCFCFD", "Fuera de su ventana"));
-        legend.add(legendText("- sin horas", "sin horas asignadas en esta semana; revisar calendario y distribución"));
+        legend.add(legendSwatch("#EAF2F6", "Task is active during this week"));
+        legend.add(legendSwatch("#FCFCFD", "Outside its window"));
+        legend.add(legendText("- no hours", "no hours assigned this week; review calendar and distribution"));
         return legend;
     }
 
@@ -909,25 +958,39 @@ public class RoadmapView extends VerticalLayout {
         Div dot = new Div();
         dot.getStyle().set("width", "9px").set("height", "9px").set("border-radius", "50%")
                 .set("background", task.color()).set("flex", "0 0 auto");
-        dot.getElement().setAttribute("title", task.epicKey() == null
+        dot.getElement().setAttribute("title", task.initiativeKey() == null
                 ? EpicPalette.UNASSIGNED_LABEL
-                : "Épica " + task.epicKey());
+                : "Initiative " + task.initiativeKey());
 
-        Span key = new Span(task.taskKey());
+        Anchor key = new Anchor(jiraIssueUrl(task.taskKey()), task.taskKey());
+        key.setTarget("_blank");
+        key.getElement().setAttribute("rel", "noopener noreferrer");
+        key.getElement().setAttribute("title", "Open " + task.taskKey() + " in Jira");
         key.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-        Div keyLine = new Div(dot, levelChip("TAREA", "usage-task-chip"), key);
+        Div keyLine = new Div(dot, levelChip("TASK", "usage-task-chip"), key);
         keyLine.getStyle().set("display", "flex").set("align-items", "center").set("gap", "6px");
         Span summary = new Span(task.summary());
         summary.getStyle().set("font-size", "11px").set("color", GanttStyle.INK)
                 .set("overflow", "hidden").set("text-overflow", "ellipsis").set("white-space", "nowrap");
         Span window = new Span(formatShortDate(task.startDate()) + " → " + formatShortDate(task.endDate())
-                + " · " + formatMd(task.md()) + " MD · " + Math.round(task.dedicationPct()) + "%");
+                + " · " + Math.round(task.dedicationPct()) + "% dedication");
         window.getStyle().set("font-size", "10.5px").set("color", GanttStyle.MUTED);
+        Span effort = new Span("Workload effort " + formatHours(task.estimatedHours())
+                + " h (" + formatMd(task.md()) + " MD) · Jira " + formatHours(task.loggedHours())
+                + " h · Remaining " + formatHours(task.totalPendingHours()) + " h ("
+                + formatMd(WorkContour.toMd(task.totalPendingHours())) + " MD)");
+        effort.addClassName("usage-task-effort-equation");
 
-        Div cell = new Div(keyLine, summary, window);
+        Div cell = new Div(keyLine, summary, window, effort);
+        cell.addClassName("usage-task-name");
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("background", "#FFFFFF").set("padding", "8px 10px").set("min-width", "0");
         return cell;
+    }
+
+    private String jiraIssueUrl(String issueKey) {
+        String baseUrl = jiraProperties.baseUrl().trim();
+        return (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "browse/" + issueKey;
     }
 
     private Span levelChip(String label, String className) {
@@ -944,11 +1007,10 @@ public class RoadmapView extends VerticalLayout {
         boolean insideWindow = !task.startDate().isAfter(week.weekEnd())
                 && !task.endDate().isBefore(week.weekStart());
 
-        Span value = new Span(hours > 0 ? formatHours(hours) + " h" : insideWindow ? "- sin horas" : "");
-        value.getStyle().set("font-size", hours > 0 ? "11px" : "10px")
-                .set("color", hours > 0 ? GanttStyle.INK : "#9AA4AA");
-
-        Span pendingValue = new Span(formatHours(pending) + " h pendientes");
+        Span value = new Span(hours > 0 ? "Plan " + formatHours(hours) + " h" : insideWindow ? "Plan 0 h" : "");
+        value.addClassName("usage-task-planned");
+        Span pendingValue = new Span("Remaining " + formatHours(pending) + " h"
+                + " · " + formatMd(WorkContour.toMd(pending)) + " MD");
         pendingValue.addClassName("usage-task-pending");
 
         Div cell = new Div();
@@ -964,41 +1026,42 @@ public class RoadmapView extends VerticalLayout {
             cell.getStyle().set("box-shadow", "inset 0 0 0 1px #D3E3EB");
         }
         if (hours > 0) {
-            cell.getElement().setAttribute("title", task.taskKey() + " · semana del "
-                    + formatShortDate(week.weekStart()) + "\n" + formatHours(hours) + " h de esfuerzo"
-                    + "\n" + formatHours(task.dailyHours()) + " h/día en esta semana ("
-                    + Math.round(task.dedicationPct()) + "% de dedicación)");
+            cell.getElement().setAttribute("title", task.taskKey() + " · week "
+                    + formatShortDate(week.weekStart()) + "\n" + formatHours(hours) + " effort h"
+                    + "\n" + formatHours(task.dailyHours()) + " h/day this week ("
+                    + Math.round(task.dedicationPct()) + "% dedication)");
         } else if (insideWindow) {
-            cell.getElement().setAttribute("title", task.taskKey() + " · semana del "
+            cell.getElement().setAttribute("title", task.taskKey() + " · week "
                     + formatShortDate(week.weekStart())
-                    + "\nDentro de la ventana pero sin horas: semana no laborable, ausencia, o el esfuerzo "
-                    + "se acomodó en otras semanas de su ventana porque acá no había lugar.");
+                    + "\nInside the window but with no hours: non-working week, absence, or effort "
+                    + "was assigned to other weeks in the window because no capacity was available here.");
         }
         return cell;
     }
 
     private Div breakdownTotalNameCell() {
-        Span label = new Span("Total asignado");
+        Span label = new Span("Total assigned");
         label.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-        Span note = new Span("suma de las tareas de arriba");
+        Span note = new Span("sum of the tasks above");
         note.getStyle().set("font-size", "10.5px").set("color", GanttStyle.MUTED);
 
         Div cell = new Div(label, note);
+        cell.addClassName("usage-task-total-name");
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("background", GanttStyle.WEEKEND_BG).set("padding", "6px 10px");
         return cell;
     }
 
     private Div breakdownTotalCell(WeekLoad week) {
-        Span value = new Span(formatHours(week.assignedHours()) + " h");
-        value.getStyle().set("font-size", "11px").set("font-weight", "700")
-                .set("color", week.overallocated() ? "#B3261E" : GanttStyle.PRIMARY_900);
-
-        Div cell = new Div(value);
-        cell.getStyle().set("background", GanttStyle.WEEKEND_BG).set("padding", "6px 8px").set("min-height", "0");
-        cell.getElement().setAttribute("title", "Semana del " + formatShortDate(week.weekStart()) + "\n"
-                + formatHours(week.assignedHours()) + " h asignadas de "
-                + formatHours(week.capacityHours()) + " h disponibles");
+        Span plan = new Span(formatHours(week.assignedHours()) + " / "
+                + formatHours(week.capacityHours()) + " h assigned");
+        plan.addClassName("usage-task-total-plan");
+        Div cell = new Div(plan);
+        cell.getStyle().set("background", GanttStyle.WEEKEND_BG)
+                .set("padding", "7px 8px").set("min-height", "0");
+        cell.getElement().setAttribute("title", "Week of " + formatShortDate(week.weekStart()) + "\n"
+                + formatHours(week.assignedHours()) + " assigned h of "
+                + formatHours(week.capacityHours()) + " available h");
         return cell;
     }
 
@@ -1011,18 +1074,20 @@ public class RoadmapView extends VerticalLayout {
      */
     private Component loadHistogramSection(WorkloadReport workload) {
         FlexLayout charts = new FlexLayout();
+        charts.addClassName("histogram-grid");
         charts.getStyle().set("display", "flex").set("flex-wrap", "wrap").set("gap", "12px");
 
         List<PersonWorkload> people = workload.people();
         if (people.isEmpty()) {
-            charts.add(emptyNote("No hay personas con carga planificada."));
+            charts.add(emptyNote("No people have planned workload."));
         } else {
             people.forEach(person -> charts.add(personHistogram(person)));
         }
 
-        return executiveSection(SECTION_HISTOGRAM, "Histograma de carga",
-                "Cada barra es una semana. La línea punteada es la capacidad de esa semana; lo que la supera se "
-                        + "dibuja en rojo y es trabajo que no entra sin mover algo.",
+        return executiveSection(SECTION_HISTOGRAM, "Workload histogram",
+                "Each bar is one week. The dotted line marks 6 h per available day. "
+                        + "Work above that line is yellow up to 8 h per available day, then red. "
+                        + "For a full five-day week, the thresholds are 30 h and 40 h.",
                 charts);
     }
 
@@ -1031,56 +1096,64 @@ public class RoadmapView extends VerticalLayout {
                 person.weeks().stream().mapToDouble(WeekLoad::assignedHours).max().orElse(1));
 
         FlexLayout bars = new FlexLayout();
+        bars.addClassName("histogram-bars");
         bars.getStyle().set("display", "flex").set("align-items", "flex-end").set("gap", "5px")
                 .set("height", HISTOGRAM_HEIGHT_PX + "px").set("position", "relative")
                 .set("border-bottom", "1px solid " + GanttStyle.BORDER);
         person.weeks().forEach(week -> bars.add(histogramBar(person, week, scale)));
 
         Span name = new Span(person.name());
-        name.getStyle().set("font-size", "12.5px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-        Span summary = new Span(person.roleLabel() + " · pico " + Math.round(person.peakUtilizationPct()) + "%"
-                + " · " + formatHours(person.totalFreeHours()) + " h libres");
-        summary.getStyle().set("font-size", "11px")
-                .set("color", person.hasOverallocation() ? "#B3261E" : GanttStyle.MUTED);
+        name.addClassName("histogram-person-name");
+        Span summary = new Span(person.roleLabel() + " · peak " + Math.round(person.peakUtilizationPct()) + "%"
+                + " · " + formatHours(person.totalFreeHours()) + " h available");
+        summary.addClassName("histogram-person-summary");
+        summary.getStyle().set("color", person.hasOverallocation() ? signalTextColor(person.loadSignal()) : GanttStyle.MUTED);
 
         Div card = new Div(name, summary, bars);
-        card.getStyle().set("display", "flex").set("flex-direction", "column").set("gap", "5px")
-                .set("flex", "1 1 300px").set("min-width", "280px").set("background", "#FFFFFF")
-                .set("border", "1px solid " + GanttStyle.BORDER).set("border-radius", "8px")
-                .set("border-left", "3px solid " + person.roleColor()).set("padding", "10px 12px")
-                .set("box-sizing", "border-box");
+        card.addClassName("histogram-card");
+        card.getStyle().set("--histogram-role-color", person.roleColor());
         return card;
     }
 
     private Div histogramBar(PersonWorkload person, WeekLoad week, double scale) {
         int assignedPx = heightPx(Math.min(week.assignedHours(), week.capacityHours()), scale);
-        int overflowPx = heightPx(week.overflowHours(), scale);
+        int warningPx = heightPx(week.warningBandHours(), scale);
+        int criticalPx = heightPx(week.criticalOverflowHours(), scale);
         int capacityPx = heightPx(week.capacityHours(), scale);
 
         Div stack = new Div();
+        stack.addClassName("histogram-bar-plot");
+        stack.getElement().setAttribute("data-load-level", week.loadSignal().name());
         stack.getStyle().set("position", "relative").set("flex", "1 1 0")
                 .set("height", HISTOGRAM_HEIGHT_PX + "px").set("min-width", "14px");
 
-        if (overflowPx > 0) {
-            stack.add(histogramSegment(overflowPx, assignedPx, "#B3261E"));
+        if (criticalPx > 0) {
+            stack.add(histogramSegment(criticalPx, assignedPx + warningPx, "#B3261E"));
+        }
+        if (warningPx > 0) {
+            stack.add(histogramSegment(warningPx, assignedPx, "#D49B18"));
         }
         if (assignedPx > 0) {
             stack.add(histogramSegment(assignedPx, 0, person.roleColor()));
         }
 
         Div capacityLine = new Div();
+        capacityLine.addClassName("histogram-capacity-line");
         capacityLine.getStyle().set("position", "absolute").set("left", "0").set("right", "0")
                 .set("bottom", capacityPx + "px").set("border-top", "1px dashed " + GanttStyle.MUTED);
         stack.add(capacityLine);
 
-        stack.getElement().setAttribute("title", "Semana del " + formatShortDate(week.weekStart())
-                + "\n" + formatHours(week.assignedHours()) + " h de " + formatHours(week.capacityHours()) + " h"
-                + " (" + Math.round(week.utilizationPct()) + "%)");
+        stack.getElement().setAttribute("title", "Week of " + formatShortDate(week.weekStart())
+                + "\n" + formatHours(week.assignedHours()) + " h of " + formatHours(week.capacityHours()) + " h"
+                + " (" + Math.round(week.utilizationPct()) + "%)"
+                + "\nYellow above " + formatHours(week.capacityHours()) + " h; red above "
+                + formatHours(week.criticalCapacityHours()) + " h");
         return stack;
     }
 
     private Div histogramSegment(int heightPx, int bottomPx, String color) {
         Div segment = new Div();
+        segment.addClassName("histogram-bar-segment");
         segment.getStyle().set("position", "absolute").set("left", "0").set("right", "0")
                 .set("bottom", bottomPx + "px").set("height", heightPx + "px")
                 .set("background", color).set("border-radius", "2px 2px 0 0");
@@ -1091,111 +1164,142 @@ public class RoadmapView extends VerticalLayout {
         return hours <= 0 ? 0 : (int) Math.max(2, Math.round(hours / Math.max(scale, 1) * (HISTOGRAM_HEIGHT_PX - 12)));
     }
 
-    // ── disponibilidad restante (Remaining Availability) ─────────────────────────
+    // Tareas que necesitan atención del equipo: sin fecha, sin estimación, o ambas.
 
     /**
-     * "Libre desde": the first week each person drops below 80% utilization with hours to
-     * spare. It answers who can take new work and from when, which the roadmap bars alone
-     * never could.
-     */
-    private Component freeFromSection(WorkloadReport workload) {
-        FlexLayout cards = new FlexLayout();
-        cards.getStyle().set("display", "flex").set("flex-wrap", "wrap").set("gap", "10px");
-
-        List<PersonWorkload> people = workload.people().stream()
-                .sorted(Comparator.comparing((PersonWorkload person) -> person.freeFrom() == null
-                                ? LocalDate.MAX : person.freeFrom())
-                        .thenComparing(PersonWorkload::name))
-                .toList();
-
-        if (people.isEmpty()) {
-            cards.add(emptyNote("No hay personas con carga planificada."));
-        } else {
-            people.forEach(person -> cards.add(freeFromCard(person)));
-        }
-
-        return executiveSection(SECTION_AVAILABILITY, "Libre desde",
-                "Primer día disponible con menos del 80% de carga pendiente y saldo libre en su semana. "
-                        + "Las horas se cuentan desde esa fecha hasta el final del horizonte. "
-                        + "La estimación usa tareas fechadas; el trabajo sin plan se muestra por separado.",
-                cards);
-    }
-
-    /**
-     * One person's availability, always bounded by the horizon. The hours quoted are the ones
-     * free <em>from {@code freeFrom} to the end of the horizon</em> and both dates are printed,
-     * because a bare "240 h libres" silently summed the leftovers of weeks the person was
-     * already booked in and hid the fact that the horizon is where the claim stops.
-     */
-    private Div freeFromCard(PersonWorkload person) {
-        boolean busyAllHorizon = person.freeFrom() == null;
-        LocalDate horizonEnd = person.horizonEnd();
-
-        Span name = new Span(person.name());
-        name.getStyle().set("font-size", "13px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-
-        Span date = new Span(busyAllHorizon
-                ? "Sin margen hasta el " + formatShortDate(horizonEnd)
-                : "Libre desde el " + AVAILABILITY_DATE.format(person.freeFrom()));
-        date.getStyle().set("font-size", "13px").set("font-weight", "600")
-                .set("color", busyAllHorizon ? "#B3261E" : "#2E7D32");
-
-        Span hours = new Span(busyAllHorizon
-                ? "0 h libres en el horizonte"
-                : formatHours(person.totalFreeHours()) + " h libres entre el "
-                + formatShortDate(person.freeFrom()) + " y el " + formatShortDate(horizonEnd));
-        hours.getStyle().set("font-size", "11.5px").set("color", GanttStyle.INK);
-
-        Span context = new Span(person.roleLabel() + " · pico "
-                + Math.round(person.peakUtilizationPct()) + "%"
-                + (person.peakWeekStart() == null
-                ? ""
-                : " en la semana del " + formatShortDate(person.peakWeekStart())));
-        context.getStyle().set("font-size", "11px").set("color", GanttStyle.MUTED);
-
-        Div card = new Div(name, date, hours, context);
-        card.getStyle().set("display", "flex").set("flex-direction", "column").set("gap", "3px")
-                .set("min-width", "215px").set("background", GanttStyle.CARD_BG)
-                .set("border", "1px solid " + GanttStyle.BORDER)
-                .set("border-left", "4px solid " + person.roleColor())
-                .set("border-radius", "7px").set("padding", "10px 12px").set("box-sizing", "border-box");
-        return card;
-    }
-
-    // Tareas sin ventana planificada.
-
-    /**
-     * Collapsed tray of tasks that have effort but no committed window in the database schedule.
-     * Their dedication had to be assumed at 100%, which inflates their owner's load, so each
-     * one is listed with its owner and a link to Jira to be agreed and dated with the team.
+     * Collapsed tray, split into two tabs, for tasks the roadmap could not fully place:
+     * those with no committed calendar window (dedication assumed at 100%) and those with no
+     * explicit effort estimate at all, which never reach the Gantt or anyone's workload.
+     * Each one is listed with its owner and a link to Jira so the team can agree on dates or
+     * load a real estimate.
      */
     private Component unplannedSection(WorkloadReport workload) {
-        List<UnplannedTask> unplanned = workload.unplannedTasks();
+        Map<UnplannedReason, List<UnplannedTask>> byReason = workload.unplannedTasks().stream()
+                .collect(Collectors.groupingBy(UnplannedTask::reason, LinkedHashMap::new, Collectors.toList()));
+        List<UnplannedTask> noDate = byReason.getOrDefault(UnplannedReason.NO_DATE, List.of());
+        List<UnplannedTask> noEstimate = byReason.getOrDefault(UnplannedReason.NO_ESTIMATE, List.of());
+        int total = noDate.size() + noEstimate.size();
+
         VerticalLayout content = compactLayout();
         content.getStyle().set("padding", "6px 0");
 
-        if (unplanned.isEmpty()) {
-            content.add(emptyNote("No hay tareas sin fechas en los datos cargados."));
+        if (total == 0) {
+            content.add(emptyNote("All loaded tasks have both dates and estimates."));
         } else {
-            Span explanation = new Span("Las tareas sin inicio no entran en el Gantt ni en la capacidad. "
-                    + "Para las que tienen inicio pero no fin se usa una ventana estimada. Acordá las fechas con el equipo.");
-            content.add(new RouterLink("Planificar tareas", TaskPlanningView.class));
-            explanation.getStyle().set("font-size", "12px").set("color", GanttStyle.MUTED);
-            content.add(explanation);
-            unplanned.forEach(task -> content.add(unplannedRow(task)));
+            content.add(new RouterLink("Plan tasks", TaskPlanningView.class));
+
+            Div noDatePanel = unplannedPanel(noDate,
+                    "Tasks without a start date are excluded from the Gantt and capacity. Tasks with a start "
+                            + "but no end date use an estimated window. Agree on committed dates with the team.",
+                    "No tasks are missing dates.");
+            Div noEstimatePanel = unplannedPanel(noEstimate,
+                    "These tasks are excluded from the Gantt and capacity until estimated. "
+                            + "For tasks, enter Original Estimate in Jira Time Tracking. "
+                            + "For subtasks, enter Local effort in Plan tasks.",
+                    "No tasks are missing estimates.");
+            noEstimatePanel.setVisible(false);
+
+            Tab tabNoDate = new Tab("Missing dates (" + noDate.size() + ")");
+            Tab tabNoEstimate = new Tab("Missing estimates (" + noEstimate.size() + ")");
+            Tabs tabs = new Tabs(tabNoDate, tabNoEstimate);
+            tabs.setWidthFull();
+            tabs.getStyle().set("margin-bottom", "6px");
+            tabs.addSelectedChangeListener(event -> {
+                noDatePanel.setVisible(tabs.getSelectedTab() == tabNoDate);
+                noEstimatePanel.setVisible(tabs.getSelectedTab() == tabNoEstimate);
+            });
+
+            content.add(tabs, noDatePanel, noEstimatePanel);
         }
 
-        Span summary = new Span("Tareas sin ventana planificada (" + unplanned.size() + ")");
+        Span summary = new Span("Needs attention (" + total + ")");
         summary.getStyle().set("font-size", "14px").set("font-weight", "700")
-                .set("color", unplanned.isEmpty() ? GanttStyle.PRIMARY_900 : "#A15C00");
+                .set("color", total == 0 ? GanttStyle.PRIMARY_900 : "#A15C00");
 
         Details details = new Details(summary, content);
         details.setId(SECTION_UNPLANNED);
-        details.setOpened(!unplanned.isEmpty());
+        details.setOpened(total > 0);
         details.setWidthFull();
         details.getStyle().set("background", "#F9FBFC").set("border", "1px solid " + GanttStyle.BORDER)
                 .set("border-radius", "10px").set("padding", "6px 16px").set("box-sizing", "border-box");
         return details;
+    }
+
+    private Div unplannedPanel(List<UnplannedTask> tasks, String explanationText, String emptyText) {
+        VerticalLayout panel = compactLayout();
+        panel.setPadding(false);
+        panel.setSpacing(false);
+
+        Span explanation = new Span(explanationText);
+        explanation.getStyle().set("font-size", "12px").set("color", GanttStyle.MUTED)
+                .set("display", "block").set("margin-bottom", "6px");
+        panel.add(explanation);
+
+        if (tasks.isEmpty()) {
+            panel.add(emptyNote(emptyText));
+        } else {
+            List<UnplannedTask> sortedTasks = tasks.stream()
+                    .sorted(Comparator
+                            .comparing(UnplannedTask::assigneeName,
+                                    Comparator.nullsLast(String.CASE_INSENSITIVE_ORDER))
+                            .thenComparing(UnplannedTask::taskKey, String.CASE_INSENSITIVE_ORDER))
+                    .toList();
+
+            TextField taskFilter = new TextField("Search task");
+            taskFilter.setPlaceholder("ID or title");
+            taskFilter.setClearButtonVisible(true);
+            taskFilter.setValueChangeMode(ValueChangeMode.EAGER);
+
+            ComboBox<String> assigneeFilter = new ComboBox<>("Person");
+            assigneeFilter.setPlaceholder("All people");
+            assigneeFilter.setClearButtonVisible(true);
+            assigneeFilter.setAllowCustomValue(false);
+            assigneeFilter.setItems(sortedTasks.stream()
+                    .map(UnplannedTask::assigneeName)
+                    .filter(name -> name != null && !name.isBlank())
+                    .distinct()
+                    .sorted(String.CASE_INSENSITIVE_ORDER)
+                    .toList());
+
+            HorizontalLayout filters = new HorizontalLayout(taskFilter, assigneeFilter);
+            filters.addClassName("unplanned-task-filters");
+            filters.setAlignItems(Alignment.END);
+            filters.setSpacing(true);
+            filters.setWrap(true);
+
+            Div table = new Div();
+            table.addClassName("unplanned-task-table");
+            Span noMatches = emptyNote("No tasks match the filters.");
+            noMatches.setVisible(false);
+
+            Runnable applyFilters = () -> {
+                String query = taskFilter.getValue() == null
+                        ? "" : taskFilter.getValue().trim().toLowerCase(Locale.ROOT);
+                String assignee = assigneeFilter.getValue();
+                List<UnplannedTask> filteredTasks = sortedTasks.stream()
+                        .filter(task -> query.isEmpty()
+                                || task.taskKey().toLowerCase(Locale.ROOT).contains(query)
+                                || task.summary().toLowerCase(Locale.ROOT).contains(query))
+                        .filter(task -> assignee == null || assignee.equals(task.assigneeName()))
+                        .toList();
+                table.removeAll();
+                if (!filteredTasks.isEmpty()) {
+                    table.add(unplannedTableHeader());
+                    filteredTasks.forEach(task -> table.add(unplannedRow(task)));
+                }
+                table.setVisible(!filteredTasks.isEmpty());
+                noMatches.setVisible(filteredTasks.isEmpty());
+            };
+            taskFilter.addValueChangeListener(event -> applyFilters.run());
+            assigneeFilter.addValueChangeListener(event -> applyFilters.run());
+            applyFilters.run();
+
+            panel.add(filters, table, noMatches);
+        }
+
+        Div wrapper = new Div(panel);
+        wrapper.setWidthFull();
+        return wrapper;
     }
 
     private Div unplannedRow(UnplannedTask task) {
@@ -1203,32 +1307,59 @@ public class RoadmapView extends VerticalLayout {
                 ? new Span(task.taskKey())
                 : new Anchor(task.jiraUrl(), task.taskKey());
         key.getElement().getStyle().set("font-size", "12px").set("font-weight", "700")
-                .set("color", GanttStyle.TODAY).set("min-width", "110px");
+                .set("color", GanttStyle.TODAY);
         if (key instanceof Anchor anchor) {
             anchor.setTarget("_blank");
-            anchor.getElement().setAttribute("title", "Abrir " + task.taskKey() + " en Jira");
+            anchor.getElement().setAttribute("title", "Open " + task.taskKey() + " in Jira");
         }
 
         Span summary = new Span(task.summary());
-        summary.getStyle().set("font-size", "12px").set("color", GanttStyle.INK).set("flex", "1 1 300px");
+        summary.getStyle().set("font-size", "13px").set("font-weight", "700")
+                .set("color", GanttStyle.INK).set("overflow-wrap", "anywhere");
 
-        Span owner = new Span(task.assigneeName() + " · " + task.roleLabel());
-        owner.getStyle().set("font-size", "11.5px").set("font-weight", "600").set("color", GanttStyle.INK)
-                .set("min-width", "180px");
-
-        Span detail = new Span(task.issueType() + " · " + task.md() + " MD"
-                + (task.mdEstimated() ? " (estimado)" : "")
-                + " · desde " + formatShortDate(task.startDate())
-                + " · fin asumido " + formatShortDate(task.assumedEnd())
-                + (task.status() == null ? "" : " · " + task.status()));
-        detail.getStyle().set("font-size", "11px").set("color", GanttStyle.MUTED);
-
-        Div row = new Div(key, summary, owner, detail);
-        row.getStyle().set("display", "flex").set("flex-wrap", "wrap").set("gap", "10px")
-                .set("align-items", "baseline").set("padding", "6px 0 6px 8px")
+        Div row = new Div(
+                unplannedCell(key),
+                unplannedCell(summary),
+                unplannedCell(new Span(task.assigneeName())),
+                unplannedCell(new Span(task.status() == null ? "No status" : task.status())));
+        row.addClassName("unplanned-task-card");
+        row.getStyle().set("display", "grid")
+                .set("grid-template-columns", "110px minmax(260px, 2fr) minmax(160px, 1fr) 140px")
+                .set("align-items", "center").set("min-width", "670px")
+                .set("padding", "10px 14px")
                 .set("border-left", "3px solid " + task.roleColor())
-                .set("border-bottom", "1px solid " + GanttStyle.BORDER);
+                .set("border-bottom", "1px solid " + GanttStyle.BORDER)
+                .set("background", "#FFFFFF");
         return row;
+    }
+
+    private Div unplannedTableHeader() {
+        Div header = new Div(
+                unplannedHeaderCell("Key"),
+                unplannedHeaderCell("Task"),
+                unplannedHeaderCell("Person"),
+                unplannedHeaderCell("Status"));
+        header.addClassName("unplanned-task-header");
+        header.getStyle().set("display", "grid")
+                .set("grid-template-columns", "110px minmax(260px, 2fr) minmax(160px, 1fr) 140px")
+                .set("align-items", "center").set("min-width", "670px")
+                .set("padding", "8px 14px").set("background", "#EEF4F7")
+                .set("border-bottom", "1px solid " + GanttStyle.BORDER);
+        return header;
+    }
+
+    private Span unplannedHeaderCell(String text) {
+        Span cell = new Span(text);
+        cell.getStyle().set("font-size", "10px").set("font-weight", "800")
+                .set("text-transform", "uppercase").set("letter-spacing", "0.04em")
+                .set("color", GanttStyle.MUTED);
+        return cell;
+    }
+
+    private Div unplannedCell(Component content) {
+        Div cell = new Div(content);
+        cell.getStyle().set("min-width", "0").set("overflow-wrap", "anywhere");
+        return cell;
     }
 
     // ── shared helpers ───────────────────────────────────────────────────────────
@@ -1240,29 +1371,29 @@ public class RoadmapView extends VerticalLayout {
     }
 
     private String loadBackground(WeekLoad week) {
-        if (week.unavailable()) {
-            return "#F1F3F4";
-        }
-        if (week.overallocated()) {
-            return "#FCEBEA";
-        }
-        if (week.utilizationPct() >= BuildWorkloadReportUseCase.BUSY_THRESHOLD_PCT) {
-            return "#FFF4D6";
-        }
-        return "#E8F5E9";
+        return loadBackground(week.loadSignal());
+    }
+
+    private String loadBackground(LoadSignal signal) {
+        return switch (signal) {
+            case UNAVAILABLE -> "#F1F3F4";
+            case RED -> "#FCEBEA";
+            case YELLOW -> "#FFF4D6";
+            case GREEN -> "#E8F5E9";
+        };
     }
 
     private String loadTextColor(WeekLoad week) {
-        if (week.unavailable()) {
-            return GanttStyle.MUTED;
-        }
-        if (week.overallocated()) {
-            return "#B3261E";
-        }
-        if (week.utilizationPct() >= BuildWorkloadReportUseCase.BUSY_THRESHOLD_PCT) {
-            return "#765100";
-        }
-        return "#2E7D32";
+        return signalTextColor(week.loadSignal());
+    }
+
+    private String signalTextColor(LoadSignal signal) {
+        return switch (signal) {
+            case UNAVAILABLE -> GanttStyle.MUTED;
+            case RED -> "#B3261E";
+            case YELLOW -> "#765100";
+            case GREEN -> "#2E7D32";
+        };
     }
 
     private String formatHours(double hours) {
@@ -1309,8 +1440,8 @@ public class RoadmapView extends VerticalLayout {
 
     private Div errorNote(RuntimeException e) {
         org.slf4j.LoggerFactory.getLogger(RoadmapView.class).error("Roadmap refresh failed", e);
-        updatedAt.setText("La actualización falló");
-        Div box = new Div(new Span("No se pudo cargar el roadmap. Reintentá con Actualizar roadmap."));
+        updatedAt.setText("Refresh failed");
+        Div box = new Div(new Span("The roadmap could not be loaded. Try Refresh roadmap again."));
         box.addClassName("inline-error");
         box.getStyle().set("color", "#B3261E").set("background", "#FDECEA")
                 .set("border", "1px solid #F5C6C2").set("border-radius", "8px")
@@ -1327,9 +1458,7 @@ public class RoadmapView extends VerticalLayout {
                 .set("display", "flex").set("flex-wrap", "wrap").set("gap", "14px")
                 .set("align-items", "center").set("margin-top", "4px");
 
-        for (Role role : Role.values()) {
-            legend.add(legendItem(role.color(), role.label()));
-        }
+        legend.add(legendItem(EpicPalette.UNASSIGNED, EpicPalette.UNASSIGNED_LABEL));
         legend.add(todayLegend());
         legend.add(milestoneLegend());
         legend.add(estimatedLegend());
@@ -1351,7 +1480,7 @@ public class RoadmapView extends VerticalLayout {
     private Div todayLegend() {
         Div marker = new Div();
         marker.getStyle().set("width", "0").set("height", "14px").set("border-left", "2px solid " + GanttStyle.TODAY);
-        Span text = new Span("Hoy");
+        Span text = new Span("Today");
         text.getStyle().set("font-size", "12px").set("color", GanttStyle.MUTED);
         Div item = new Div(marker, text);
         item.getStyle().set("display", "flex").set("align-items", "center").set("gap", "6px");
@@ -1360,8 +1489,10 @@ public class RoadmapView extends VerticalLayout {
 
     private Div milestoneLegend() {
         Div marker = new Div();
-        marker.getStyle().set("width", "0").set("height", "14px").set("border-left", "2px dashed " + GanttStyle.MILESTONE);
-        Span text = new Span("Milestone");
+        marker.getStyle().set("width", "10px").set("height", "10px")
+                .set("background", GanttStyle.MILESTONE).set("transform", "rotate(45deg)")
+                .set("border-radius", "2px");
+        Span text = new Span("Milestone · Delivery Date");
         text.getStyle().set("font-size", "12px").set("color", GanttStyle.MUTED);
         Div item = new Div(marker, text);
         item.getStyle().set("display", "flex").set("align-items", "center").set("gap", "6px");
@@ -1372,7 +1503,7 @@ public class RoadmapView extends VerticalLayout {
         Div marker = new Div();
         marker.getStyle().set("width", "16px").set("height", "12px").set("border-radius", "3px")
                 .set("border", "2px dashed " + GanttStyle.BAR_BORDER);
-        Span text = new Span("Estimación inferida");
+        Span text = new Span("Start rescheduled locally");
         text.getStyle().set("font-size", "12px").set("color", GanttStyle.MUTED);
         Div item = new Div(marker, text);
         item.getStyle().set("display", "flex").set("align-items", "center").set("gap", "6px");
@@ -1393,8 +1524,8 @@ public class RoadmapView extends VerticalLayout {
         if (estimatedKeys.isEmpty()) {
             return;
         }
-        Span text = new Span("Estimación inferida (MD por defecto porque Jira y la planificación no lo traen, o fecha de "
-                + "inicio no leída de Jira - pasá el mouse sobre una barra para ver la fuente exacta): "
+        Span text = new Span("Start date rescheduled locally or unavailable from Jira. Hover over a bar to "
+                + "see the exact source: "
                 + String.join(", ", estimatedKeys) + ".");
         text.getStyle().set("font-size", "11.5px").set("color", GanttStyle.MUTED);
 

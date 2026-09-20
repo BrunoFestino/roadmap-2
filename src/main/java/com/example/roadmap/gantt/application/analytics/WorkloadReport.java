@@ -17,15 +17,24 @@ import java.util.List;
  *       <em>Remaining Availability</em>: who can take new work, and from when?</li>
  * </ul>
  *
- * <p>{@link #unplannedTasks()} is not a view of load but of data quality: tasks whose
- * dedication had to be assumed because the database schedule has no end date for them.
+ * <p>{@link #unplannedTasks()} is not a view of load but of data quality: tasks missing a
+ * committed calendar window, an explicit effort estimate, or both.
  *
- * @param asOf           the date the report was computed for
- * @param horizonStart   first day of the reporting horizon (inclusive)
- * @param horizonEnd     last day of the reporting horizon (inclusive)
- * @param weekStarts     start date of every week bucket, chronologically
- * @param roles          role groups, each carrying its people, in roadmap role order
- * @param unplannedTasks tasks with effort but no committed calendar window
+ * <p>{@link #subtaskOverrunWarnings()} is a data-quality signal of its own: a parent task
+ * whose Jira Sub-tasks add up to more effort than the parent itself was estimated for. The
+ * parent still drops out of the load - its Sub-tasks carry the real total - but the overrun
+ * is a planning mistake worth flagging rather than silently absorbing.
+ *
+ * @param asOf                  the date the report was computed for
+ * @param horizonStart          first day of the reporting horizon (inclusive)
+ * @param horizonEnd            last day of the reporting horizon (inclusive)
+ * @param weekStarts            start date of every week bucket, chronologically
+ * @param roles                 role groups, each carrying its people, in roadmap role order
+ * @param unplannedTasks        tasks missing a calendar window or an effort estimate
+ * @param warnings              date-related planning issues (overdue tasks, windows with no
+ *                              available days)
+ * @param subtaskOverrunWarnings parent tasks whose Sub-tasks add up to more effort than the
+ *                              parent's own estimate
  */
 public record WorkloadReport(
         LocalDate asOf,
@@ -34,7 +43,8 @@ public record WorkloadReport(
         List<LocalDate> weekStarts,
         List<RoleWorkload> roles,
         List<UnplannedTask> unplannedTasks,
-        List<PlanningWarning> warnings) {
+        List<PlanningWarning> warnings,
+        List<PlanningWarning> subtaskOverrunWarnings) {
 
     /** Every person in the report, flattened out of their role groups. */
     public List<PersonWorkload> people() {

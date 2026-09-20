@@ -13,7 +13,7 @@
     <artifactId>roadmap</artifactId>
     <version>0.0.1-SNAPSHOT</version>
     <name>roadmap</name>
-    <description>Roadmap AR1 con planificación local y capacidad por persona</description>
+    <description>Roadmap planning and workload analysis</description>
     <properties>
         <java.version>21</java.version>
         <vaadin.version>24.9.5</vaadin.version>

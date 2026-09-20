@@ -11,20 +11,20 @@ package com.example.roadmap.gantt.application.model;
  */
 public enum StartDateSource {
 
-    LOCAL_PLAN("Planificación local (PostgreSQL)"),
+    LOCAL_PLAN("Local planning (PostgreSQL)"),
 
     /** Configured "Target start" custom field, read directly off the issue. */
     TARGET_START("Target Start (Jira)"),
     /** Legacy "Planned/Effective Start Date" source, not used by the current provider. */
     JIRA_START_DATE("Start Date (Jira)"),
     /** Configured "First Time In Progress" custom field, read directly off the issue. */
-    FIRST_TIME_IN_PROGRESS("Primera vez En Progreso (Jira)"),
+    FIRST_TIME_IN_PROGRESS("First Time In Progress (Jira)"),
     /** Legacy Jira Agile sprint source, not used by the current provider. */
-    SPRINT_START("Inicio de sprint (Jira)"),
+    SPRINT_START("Sprint Start (Jira)"),
     /** Calculated by chaining this person's other undated tasks one after another. */
-    CHAINED_PLANNED("Planificado por encadenamiento"),
+    CHAINED_PLANNED("Planned by task chaining"),
     /** Last-resort technical fallback: the issue's Jira creation date. */
-    CREATED_DATE_FALLBACK("Fecha de creación (fallback)");
+    CREATED_DATE_FALLBACK("Created date (fallback)");
 
     private final String label;
 

@@ -1,6 +1,7 @@
 package com.example.roadmap.jira;
 
 import com.example.roadmap.config.JiraProperties;
+import com.example.roadmap.gantt.application.model.WorkflowStatus;
 import com.example.roadmap.jira.dto.JiraIssueDto;
 import com.example.roadmap.jira.dto.JiraSearchResponseDto;
 import java.util.ArrayList;
@@ -11,8 +12,9 @@ import org.springframework.web.client.RestClient;
 public class JiraRestClient implements JiraClient {
 
     private static final int PAGE_SIZE = 100;
-    private static final String OPEN_STATUSES =
-            "status NOT IN (\"Done\", \"Cancelled\", \"Resolved\", \"Closed\", \"Obsolete\")";
+    private static final String OPEN_STATUSES = WorkflowStatus.jiraOpenClause();
+    private static final String EXECUTABLE_TYPES =
+            "issuetype IN (\"User Story\", Task, \"Test Plan\", Bug, Spike, \"L3 Problem\")";
     private final RestClient restClient;
     private final JiraProperties properties;
 
@@ -30,10 +32,31 @@ public class JiraRestClient implements JiraClient {
         String jql = "project = " + projectKey
                 + " AND assignee IN (" + String.join(", ", assignees) + ")"
                 + " AND " + OPEN_STATUSES
-                + " AND (issuetype IN (\"User Story\", Task, \"Test Plan\", Bug, Spike, \"L3 Problem\")"
-                + " OR issuetype IN subTaskIssueTypes() OR issuetype = Epic)"
+                + " AND (" + EXECUTABLE_TYPES
+                + " OR issuetype IN subTaskIssueTypes())"
                 + " ORDER BY key ASC";
         return searchAllPages(jql, roadmapFields());
+    }
+
+    @Override
+    public JiraSearchResponseDto searchWorkloadIssuesByAssignees(String projectKey, List<String> usernames) {
+        List<String> assignees = normalizeUsernames(usernames);
+        if (assignees.isEmpty()) {
+            return new JiraSearchResponseDto(List.of());
+        }
+        String jql = "project = " + projectKey
+                + " AND assignee IN (" + String.join(", ", assignees) + ")"
+                + " AND ((" + EXECUTABLE_TYPES + " AND " + OPEN_STATUSES + ")"
+                + " OR issuetype IN subTaskIssueTypes())"
+                + " ORDER BY key ASC";
+        return searchAllPages(jql, roadmapFields());
+    }
+
+    @Override
+    public JiraSearchResponseDto searchOpenEpics(String projectKey) {
+        return searchAllPages(
+                "project = " + projectKey + " AND issuetype = Epic AND " + OPEN_STATUSES + " ORDER BY key ASC",
+                roadmapFields());
     }
 
     @Override
@@ -87,6 +110,7 @@ public class JiraRestClient implements JiraClient {
     private String roadmapFields() {
         return String.join(",", "summary", "status", "issuetype", "parent", "assignee", "duedate",
                 "timetracking", "labels", properties.fieldEffortEstimate(), properties.fieldEpicLink(),
-                properties.fieldTargetStart(), properties.fieldFirstTimeInProgress());
+                properties.fieldParentMilestone(), properties.fieldTargetStart(),
+                properties.fieldFirstTimeInProgress());
     }
 }

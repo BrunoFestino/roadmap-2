@@ -1,7 +1,7 @@
 package com.example.roadmap.gantt.application.analytics;
 
-import com.example.roadmap.config.JiraProperties;
 import com.example.roadmap.gantt.application.data.GanttDataProvider;
+import com.example.roadmap.gantt.application.data.CompletedSubtaskEffort;
 import com.example.roadmap.gantt.application.data.RoadmapSnapshot;
 import com.example.roadmap.gantt.application.data.TeamAbsenceRepository;
 import com.example.roadmap.gantt.application.model.GanttTask;
@@ -10,8 +10,12 @@ import com.example.roadmap.gantt.application.model.LevelledContour;
 import com.example.roadmap.gantt.application.model.Role;
 import com.example.roadmap.gantt.application.model.TeamAbsence;
 import com.example.roadmap.gantt.application.model.TeamMember;
+import com.example.roadmap.gantt.application.model.SubtaskBudget;
 import com.example.roadmap.gantt.application.model.WorkContour;
 import com.example.roadmap.gantt.application.model.WorkingDays;
+import com.example.roadmap.config.JiraProperties;
+import org.springframework.stereotype.Service;
+
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
@@ -20,9 +24,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.function.Predicate;
-import org.springframework.stereotype.Service;
 
 /**
  * Builds the workload report behind the roadmap's resource views, following Microsoft
@@ -73,7 +75,8 @@ public class BuildWorkloadReportUseCase {
     public static final double OVERALLOCATION_PCT = 100.0;
 
     /** Role bucket ordering, shared with the roadmap's "por rol" view. */
-    private static final List<Role> ROLE_BUCKETS = List.of(Role.FRONTEND, Role.BACKEND, Role.MOBILE, Role.DEVOPS);
+    private static final List<Role> ROLE_BUCKETS = List.of(
+            Role.FRONTEND, Role.BACKEND, Role.MOBILE, Role.DEVOPS, Role.PO, Role.SQC);
 
     private final GanttDataProvider dataProvider;
     private final TeamAbsenceRepository absenceRepository;
@@ -114,8 +117,12 @@ public class BuildWorkloadReportUseCase {
         Map<String, List<TeamAbsence>> calendars = snapshot.absencesByPerson();
         List<GanttTask> executableTasks = allTasks.stream().filter(task -> !task.isContextWork()).toList();
 
+        List<PlanningWarning> subtaskOverrunWarnings = new ArrayList<>();
+        List<GanttTask> loadTasks = applySubtaskEffortDiscount(
+                executableTasks, snapshot.completedSubtasks(), subtaskOverrunWarnings, snapshot.subtaskBudget());
+
         Map<String, List<GanttTask>> tasksByUsername = new LinkedHashMap<>();
-        for (GanttTask task : executableTasks) {
+        for (GanttTask task : loadTasks) {
             tasksByUsername.computeIfAbsent(task.assignee().username(), key -> new ArrayList<>()).add(task);
         }
 
@@ -136,19 +143,50 @@ public class BuildWorkloadReportUseCase {
                     RoleWorkload.aggregate(people, weekStarts), earliestFreeFrom(people)));
         }
 
-        List<UnplannedTask> unplanned = new ArrayList<>(snapshot.undatedTasks());
+        List<UnplannedTask> unplanned = new ArrayList<>(snapshot.unplannedTasks());
         unplanned.addAll(unplannedTasks(allTasks));
         List<PlanningWarning> warnings = new ArrayList<>();
         for (GanttTask task : executableTasks) {
             Predicate<LocalDate> absent = RoadmapSnapshot.calendar(snapshot.absences(), task.assignee().username());
             String reason = null;
-            if (task.remainingWorkHours() <= 0) reason = "Estimación agotada en una tarea abierta: revisar esfuerzo restante";
-            else if (task.end().isBefore(asOf)) reason = "Vencida: requiere replanificación";
+            if (task.end().isBefore(asOf)) reason = "Overdue: rescheduling required";
             else if (WorkContour.capacityHours(task.start().isAfter(asOf) ? task.start() : asOf, task.end(), absent) <= 0)
-                reason = "Ventana sin días disponibles";
+                reason = "Window has no available days";
             if (reason != null) warnings.add(new PlanningWarning(task.key(), task.summary(), task.assignee().name(), task.remainingWorkHours(), reason));
         }
-        return new WorkloadReport(asOf, horizonStart, horizonEnd, List.copyOf(weekStarts), List.copyOf(roles), List.copyOf(unplanned), List.copyOf(warnings));
+        return new WorkloadReport(asOf, horizonStart, horizonEnd, List.copyOf(weekStarts), List.copyOf(roles),
+                List.copyOf(unplanned), List.copyOf(warnings), List.copyOf(subtaskOverrunWarnings));
+    }
+
+    /** Uses the same budget allocation as the provider, including reservations for undated subtasks. */
+    private List<GanttTask> applySubtaskEffortDiscount(List<GanttTask> executableTasks,
+                                                        List<CompletedSubtaskEffort> completedSubtasks,
+                                                        List<PlanningWarning> overruns,
+                                                        SubtaskBudget.Allocation budget) {
+        if (budget == null) {
+            Map<String, Double> consumed = new LinkedHashMap<>();
+            completedSubtasks.forEach(task -> consumed.merge(task.parentKey(), task.consumedMd(), Double::sum));
+            budget = SubtaskBudget.allocate(executableTasks.stream()
+                    .map(task -> new SubtaskBudget.Entry(task.key(), task.parentKey(), task.issueType(),
+                            task.inheritedEffort() ? null : task.md())).toList(), consumed);
+        }
+        List<GanttTask> adjusted = new ArrayList<>();
+        for (GanttTask task : executableTasks) {
+            double overrun = budget.overrunsMd().getOrDefault(task.key(), 0.0);
+            if (overrun > 0.000001) {
+                overruns.add(new PlanningWarning(task.key(), task.summary(), task.assignee().name(),
+                        task.remainingWorkHours(), "Subtasks exceed the parent estimate: "
+                        + formatMd(task.md() + overrun) + " MD consumed/estimated vs "
+                        + formatMd(task.md()) + " parent MD (+" + formatMd(overrun) + " MD)"));
+            }
+            double effectiveMd = budget.effectiveMd().getOrDefault(task.key(), task.md());
+            if (effectiveMd > 0.000001) adjusted.add(task.withEffectiveMd(effectiveMd));
+        }
+        return adjusted;
+    }
+    /** One decimal place is enough precision for an MD figure shown to a human. */
+    private String formatMd(double md) {
+        return String.format(java.util.Locale.ROOT, "%.1f", md);
     }
 
     /** One bucket per week, aligned to Monday so weeks read the way the team talks about them. */
@@ -181,7 +219,7 @@ public class BuildWorkloadReportUseCase {
                     : WorkContour.capacityHours(remainingFrom, weekEnd, absent);
             long remainingWorkingDays = remainingFrom.isAfter(weekEnd)
                     ? 0
-                    : WorkingDays.countBetween(remainingFrom, weekEnd);
+                    : WorkingDays.countBetween(remainingFrom, weekEnd, absent);
 
             List<TaskLoad> breakdown = new ArrayList<>();
             double assignedHours = 0;
@@ -200,7 +238,8 @@ public class BuildWorkloadReportUseCase {
                 if (hours <= 0 && pending <= 0) continue;
                 breakdown.add(new TaskLoad(task.key(), task.summary(), hours,
                         plan.dailyHoursIn(task, weekStart, weekEnd), task.status(),
-                        task.start(), task.end(), task.md(), task.effectiveEpicKey(), pending));
+                        task.start(), task.end(), task.md(), task.loggedSeconds() / 3600.0,
+                        task.initiativeKey(), pending));
             }
             breakdown.sort(Comparator.comparingDouble(TaskLoad::hours).reversed());
 
@@ -279,8 +318,8 @@ public class BuildWorkloadReportUseCase {
                         .thenComparing(GanttTask::key))
                 .map(task -> new UnplannedTask(task.key(), task.summary(), task.issueType(),
                         task.assignee().name(), task.assignee().role().label(), task.assignee().role().color(),
-                        task.status(), task.start(), task.end(), task.md(), task.mdEstimated(),
-                        jiraUrl(task.key())))
+                        task.status(), task.start(), task.end(), task.md(),
+                        jiraUrl(task.key()), UnplannedReason.NO_DATE))
                 .toList();
     }
 

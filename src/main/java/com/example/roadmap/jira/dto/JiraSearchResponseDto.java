@@ -13,7 +13,7 @@ public record JiraSearchResponseDto(
         int maxResults,
         int total
 ) {
-    public JiraSearchResponseDto(List<JiraIssueDto> issues) {
-        this(issues, 0, issues == null ? 0 : issues.size(), issues == null ? 0 : issues.size());
-    }
+  public JiraSearchResponseDto(List<JiraIssueDto> issues) {
+    this(issues, 0, issues == null ? 0 : issues.size(), issues == null ? 0 : issues.size());
+  }
 }

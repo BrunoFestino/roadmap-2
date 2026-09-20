@@ -93,7 +93,7 @@ public final class TaskStackResolver {
         }
 
         public String displayLabel() {
-            return recognizedLabels.isEmpty() ? "Sin label de stack" : String.join(", ", recognizedLabels);
+            return recognizedLabels.isEmpty() ? "No stack label" : String.join(", ", recognizedLabels);
         }
     }
 

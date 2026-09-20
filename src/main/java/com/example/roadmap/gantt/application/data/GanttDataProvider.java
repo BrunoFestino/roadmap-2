@@ -14,7 +14,7 @@ import java.util.List;
  */
 public interface GanttDataProvider {
 
-    /** Planned tasks for the AR1 team, one per relevant open Jira issue. */
+    /** Planned tasks for the roadmap team, one per relevant open Jira issue. */
     List<GanttTask> tasks();
 
     default RoadmapSnapshot snapshot(List<TeamAbsence> absences) {

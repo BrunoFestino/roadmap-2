@@ -12,8 +12,8 @@ public enum TaskStack {
     BACKEND("BE", "#0F4660", true),
     MOBILE("Mobile", "#2E7D32", true),
     DEVOPS("DevOps", "#B36A00", true),
-    AMBIGUOUS("Stack ambiguo", "#B3261E", false),
-    UNCLASSIFIED("Sin stack", "#6B778C", false);
+    AMBIGUOUS("Ambiguous stack", "#B3261E", false),
+    UNCLASSIFIED("No stack", "#6B778C", false);
 
     private final String label;
     private final String color;

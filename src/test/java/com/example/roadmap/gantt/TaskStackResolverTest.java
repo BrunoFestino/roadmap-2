@@ -64,7 +64,7 @@ class TaskStackResolverTest {
         var assignee = GanttTeamRoster.defaults().members().getFirst();
         var date = LocalDate.of(2026, 9, 14);
         var task = GanttTask.create("T-1", "Frontend work", "Task", assignee,
-                date, date, StartDateSource.LOCAL_PLAN, 1, false, "Open", date,
+                date, date, StartDateSource.LOCAL_PLAN, 1, "Open", date,
                 ignored -> false, null, 0, TaskStack.FRONTEND, TaskStackSource.JIRA_LABEL);
 
         var chart = new BuildRoleGanttUseCase(null).build(List.of(task), List.of());

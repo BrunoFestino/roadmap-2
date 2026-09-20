@@ -5,11 +5,11 @@ import com.example.roadmap.gantt.application.data.RoadmapSnapshot;
 import com.example.roadmap.gantt.application.data.TargetStartRepository;
 import com.example.roadmap.gantt.application.data.TeamAbsenceRepository;
 import com.example.roadmap.gantt.application.model.GanttTeamRoster;
+import com.example.roadmap.gantt.application.model.EffortEstimates;
 import com.example.roadmap.gantt.application.model.Role;
-import com.example.roadmap.gantt.application.model.TeamMember;
 import com.example.roadmap.gantt.application.model.TaskStack;
 import com.example.roadmap.gantt.application.model.TaskStackResolver;
-import com.example.roadmap.gantt.application.model.TaskStackSource;
+import com.example.roadmap.gantt.application.model.TeamMember;
 import com.example.roadmap.gantt.application.model.WorkContour;
 import com.example.roadmap.gantt.ui.style.GanttStyle;
 import com.example.roadmap.jira.JiraClient;
@@ -21,6 +21,7 @@ import com.vaadin.flow.component.button.ButtonVariant;
 import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
+import com.vaadin.flow.component.html.Anchor;
 import com.vaadin.flow.component.html.H1;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
@@ -28,37 +29,47 @@ import com.vaadin.flow.component.notification.NotificationVariant;
 import com.vaadin.flow.component.orderedlayout.HorizontalLayout;
 import com.vaadin.flow.component.orderedlayout.VerticalLayout;
 import com.vaadin.flow.component.textfield.TextField;
+import com.vaadin.flow.component.textfield.NumberField;
+import com.vaadin.flow.data.value.ValueChangeMode;
 import com.vaadin.flow.router.PageTitle;
 import com.vaadin.flow.router.Route;
+
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
 
 /**
- * Lets roadmap owners plan the dates of open AR1 Jira tasks without editing files directly.
- * An in-progress task keeps its already established start date immutable.
+ * Lets roadmap owners plan the dates of open example Jira tasks without editing files directly.
  */
 @Route(value = "gantt/planning", layout = MainLayout.class)
-@PageTitle("Planificar tareas")
+@PageTitle("Plan tasks")
 public class TaskPlanningView extends VerticalLayout {
 
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
     private final transient JiraClient jiraClient;
     private final transient JiraProperties jiraProperties;
     private final transient TargetStartRepository scheduleRepository;
     private final Grid<TaskPlan> grid = new Grid<>(TaskPlan.class, false);
-    private final Span selectedTask = new Span("Elegí una tarea de la tabla.");
-    private final DatePicker startField = new DatePicker("Inicio");
-    private final DatePicker endField = new DatePicker("Fin");
+    private final TextField issueFilter = new TextField("Jira ID");
+    private final ComboBox<String> assigneeFilter = new ComboBox<>("Person");
+    private final ComboBox<PlanningKind> typeFilter = new ComboBox<>("Show");
+    private final Span gridHint = new Span("Scroll the table horizontally to view all details.");
+    private final Span selectedTask = new Span("Select an Epic, task or subtask from the table.");
+    private final DatePicker startField = new DatePicker("Start");
+    private final DatePicker endField = new DatePicker("End");
+    private final NumberField effortField = new NumberField("Local effort (MD)");
     private final TextField jiraStackField = new TextField("Label Jira");
-    private final ComboBox<TaskStack> localStackField = new ComboBox<>("Stack local");
-    private final TextField roleStackField = new TextField("Fallback por persona");
-    private final Span effectiveStack = new Span("Stack efectivo: -");
-    private final Button saveButton = new Button("Guardar planificación");
+    private final ComboBox<TaskStack> localStackField = new ComboBox<>("Local stack");
+    private final TextField roleStackField = new TextField("Person fallback");
+    private final Span effectiveStack = new Span("Effective stack: -");
+    private final Button saveButton = new Button("Save plan");
+    private List<TaskPlan> plans = List.of();
     private TaskPlan selected;
     private final transient TeamAbsenceRepository absenceRepository;
     private final transient GanttTeamRoster teamRoster;
@@ -84,52 +95,115 @@ public class TaskPlanningView extends VerticalLayout {
         getStyle().set("font-family", GanttStyle.FONT).set("color", GanttStyle.INK);
 
         configureGrid();
-        add(title(), subtitle(), toolbar(), grid, planningForm());
+        configureFilters();
+        gridHint.addClassName("planning-grid-hint");
+        add(title(), subtitle(), toolbar(), gridHint, grid, planningForm());
         reloadTasks();
     }
 
     private Component title() {
-        H1 title = new H1("Planificación de tareas");
+        H1 title = new H1("Task and initiative planning");
         title.addClassName("page-title");
         title.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-weight", "700");
         return title;
     }
 
     private Component subtitle() {
-        Span subtitle = new Span("Elegí una tarea abierta y definí su ventana de trabajo. "
-                + "El stack local es opcional y tiene prioridad sobre Jira y el rol de la persona. "
-                + "Las tareas en progreso mantienen su fecha de inicio.");
+        Span subtitle = new Span("Plan open Epics, tasks and subtasks. "
+                + "Tasks use Jira Time Tracking Original Estimate; subtasks use local effort only. "
+                + "The local stack is optional and takes priority over Jira and the person's role. "
+                + "Epics only define duration and never consume capacity. Milestones use only "
+                + "their Jira Delivery Date.");
         subtitle.addClassName("page-subtitle");
         subtitle.getStyle().set("color", GanttStyle.MUTED).set("font-size", "14px");
         return subtitle;
     }
 
     private Component toolbar() {
-        Button reload = new Button("Actualizar tareas", event -> reloadTasks());
+        Button reload = new Button("Refresh", event -> reloadTasks());
         reload.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-        HorizontalLayout toolbar = new HorizontalLayout(reload);
-        toolbar.addClassName("page-toolbar");
+        HorizontalLayout filters = new HorizontalLayout(issueFilter, assigneeFilter, typeFilter);
+        filters.addClassName("planning-filters");
+        filters.setAlignItems(Alignment.END);
+        filters.setSpacing(true);
+        filters.setWrap(true);
+
+        HorizontalLayout toolbar = new HorizontalLayout(filters, reload);
+        toolbar.addClassNames("page-toolbar", "planning-toolbar");
+        toolbar.setAlignItems(Alignment.END);
         return toolbar;
     }
 
     private void configureGrid() {
-        grid.addColumn(TaskPlan::issueKey).setHeader("Tarea").setAutoWidth(true);
-        grid.addColumn(TaskPlan::summary).setHeader("Resumen").setFlexGrow(1);
-        grid.addColumn(TaskPlan::assignee).setHeader("Responsable").setAutoWidth(true);
-        grid.addColumn(plan -> plan.role().label()).setHeader("Rol").setAutoWidth(true);
-        grid.addColumn(TaskPlan::status).setHeader("Estado").setAutoWidth(true);
-        grid.addColumn(plan -> taskStackResolver.classifyJira(plan.jiraLabels()).displayLabel())
-                .setHeader("Label Jira").setAutoWidth(true);
-        grid.addColumn(plan -> plan.localStack() == null ? "-" : plan.localStack().label())
-                .setHeader("Stack local").setAutoWidth(true);
-        grid.addColumn(plan -> plan.effectiveStack().label()).setHeader("Stack efectivo").setAutoWidth(true);
-        grid.addColumn(plan -> format(plan.startDate())).setHeader("Inicio").setAutoWidth(true);
-        grid.addColumn(plan -> format(plan.endDate())).setHeader("Fin").setAutoWidth(true);
+        grid.addComponentColumn(plan -> tableText(plan.kind().label())).setHeader("Type")
+                .setWidth("110px").setFlexGrow(0);
+        grid.addComponentColumn(this::issueLink).setHeader("Issue")
+                .setWidth("145px").setFlexGrow(0);
+        grid.addComponentColumn(this::summaryCell).setHeader("Summary")
+                .setWidth("400px").setFlexGrow(1);
+        grid.addComponentColumn(plan -> tableText(plan.assignee())).setHeader("Assignee")
+                .setWidth("175px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(formatWindow(plan))).setHeader("Start - End")
+                .setWidth("225px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(formatMd(plan.jiraEffortMd())))
+                .setHeader("Jira estimate").setWidth("135px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(formatMd(plan.kind() == PlanningKind.SUBTASK ? plan.effortMd() : null)))
+                .setHeader("Local MD").setWidth("115px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(plan.role() == null ? "-" : plan.role().label()))
+                .setHeader("Role").setWidth("100px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(plan.status())).setHeader("Status")
+                .setWidth("180px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(plan.kind() == PlanningKind.EPIC ? "-"
+                        : taskStackResolver.classifyJira(plan.jiraLabels()).displayLabel()))
+                .setHeader("Label Jira").setWidth("210px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(
+                        plan.localStack() == null ? "-" : plan.localStack().label()))
+                .setHeader("Local stack").setWidth("150px").setFlexGrow(0);
         grid.setSelectionMode(Grid.SelectionMode.SINGLE);
         grid.asSingleSelect().addValueChangeListener(event -> selectTask(event.getValue()));
         grid.setWidthFull();
-        grid.setHeight("clamp(300px, 38vh, 420px)");
         grid.addClassNames("data-grid", "planning-grid");
+    }
+
+    private Component issueLink(TaskPlan plan) {
+        Anchor link = new Anchor(jiraIssueUrl(plan.issueKey()), plan.issueKey());
+        link.setTarget("_blank");
+        link.getElement().setAttribute("rel", "noopener noreferrer");
+        link.getElement().setAttribute("aria-label",
+                "Open " + plan.issueKey() + " in Jira: " + plan.summary());
+        link.getStyle().set("font-weight", "700").set("white-space", "nowrap");
+        return link;
+    }
+
+    private Component summaryCell(TaskPlan plan) {
+        Span summary = new Span(plan.summary());
+        summary.getElement().setAttribute("title", plan.summary());
+        summary.addClassName("planning-grid-text");
+        return summary;
+    }
+
+    private Component tableText(String value) {
+        Span text = new Span(value == null || value.isBlank() ? "-" : value);
+        text.addClassName("planning-grid-text");
+        return text;
+    }
+
+    private void configureFilters() {
+        issueFilter.setPlaceholder("e.g. DEMO-123");
+        issueFilter.setClearButtonVisible(true);
+        issueFilter.setValueChangeMode(ValueChangeMode.EAGER);
+        issueFilter.addValueChangeListener(event -> applyFilters());
+
+        assigneeFilter.setPlaceholder("All people");
+        assigneeFilter.setClearButtonVisible(true);
+        assigneeFilter.setAllowCustomValue(false);
+        assigneeFilter.addValueChangeListener(event -> applyFilters());
+
+        typeFilter.setItems(PlanningKind.values());
+        typeFilter.setItemLabelGenerator(PlanningKind::label);
+        typeFilter.setValue(PlanningKind.ALL);
+        typeFilter.setAllowCustomValue(false);
+        typeFilter.addValueChangeListener(event -> applyFilters());
     }
 
     private Component planningForm() {
@@ -137,18 +211,27 @@ public class TaskPlanningView extends VerticalLayout {
         endField.setRequiredIndicatorVisible(true);
         startField.setEnabled(false);
         endField.setEnabled(false);
+        effortField.setEnabled(false);
+        effortField.setMin(0.1);
+        effortField.setStep(0.1);
+        effortField.setStepButtonsVisible(true);
+        effortField.setHelperText("Subtasks only. Leave empty to share available parent budget.");
         saveButton.setEnabled(false);
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
+        saveButton.addClassName("planning-save-button");
         saveButton.addClickListener(event -> save());
 
-        HorizontalLayout fields = new HorizontalLayout(startField, endField, jiraStackField,
-                localStackField, roleStackField, saveButton);
+        HorizontalLayout fields = new HorizontalLayout(startField, endField, effortField, jiraStackField,
+                localStackField, roleStackField);
         fields.addClassName("form-fields");
         fields.setAlignItems(Alignment.END);
         fields.setSpacing(true);
         fields.setWrap(true);
 
-        VerticalLayout form = new VerticalLayout(selectedTask, fields, effectiveStack);
+        HorizontalLayout actions = new HorizontalLayout(effectiveStack, saveButton);
+        actions.addClassNames("form-actions", "planning-actions");
+        actions.setWidthFull();
+        VerticalLayout form = new VerticalLayout(selectedTask, fields, actions);
         form.addClassNames("surface-card", "planning-form");
         selectedTask.addClassName("selection-instruction");
         effectiveStack.addClassName("effective-stack-preview");
@@ -169,7 +252,7 @@ public class TaskPlanningView extends VerticalLayout {
                 TaskStack.MOBILE, TaskStack.DEVOPS));
         localStackField.setItemLabelGenerator(TaskStack::label);
         localStackField.setClearButtonVisible(true);
-        localStackField.setPlaceholder("Usar valor heredado");
+        localStackField.setPlaceholder("Use inherited value");
         localStackField.addValueChangeListener(event -> updateEffectiveStack());
         jiraStackField.setWidth("190px");
         localStackField.setWidth("190px");
@@ -179,24 +262,33 @@ public class TaskPlanningView extends VerticalLayout {
     private boolean reloadTasks() {
         try {
             Map<String, TargetStartRepository.Schedule> schedules = scheduleRepository.findSchedules();
-            List<TaskPlan> plans = jiraClient
+            List<TaskPlan> loaded = new ArrayList<>(jiraClient
                     .searchOpenIssuesByAssignees(jiraProperties.project(), teamRoster.usernames())
                     .issues().stream()
-                    .map(issue -> toPlan(issue, schedules.get(issue.key())))
+                    .map(issue -> toTaskPlan(issue, schedules.get(issue.key())))
                     .filter(plan -> plan != null)
-                    .sorted(Comparator.comparing(TaskPlan::assignee).thenComparing(TaskPlan::issueKey))
+                    .toList());
+            loaded.addAll(jiraClient.searchOpenEpics(jiraProperties.project()).issues().stream()
+                    .map(issue -> toEpicPlan(issue, schedules.get(issue.key())))
+                    .filter(plan -> plan != null)
+                    .toList());
+            plans = loaded.stream()
+                    .sorted(Comparator.comparing(TaskPlan::kind)
+                            .thenComparing(TaskPlan::assignee, Comparator.nullsLast(String::compareTo))
+                            .thenComparing(TaskPlan::issueKey))
                     .toList();
-            grid.setItems(plans);
+            refreshAssigneeFilter();
+            applyFilters();
             selectTask(null);
             return true;
         } catch (RuntimeException e) {
             LOG.error("Loading task planning failed", e);
-            showError("No se pudieron actualizar las tareas. Conservamos los datos visibles; podés reintentar.");
+            showError("Tasks could not be refreshed. The visible data was preserved; you can retry.");
             return false;
         }
     }
 
-    private TaskPlan toPlan(JiraIssueDto issue, TargetStartRepository.Schedule schedule) {
+    private TaskPlan toTaskPlan(JiraIssueDto issue, TargetStartRepository.Schedule schedule) {
         JiraIssueDto.Fields fields = issue.fields();
         if (issue.key() == null || fields == null || fields.assignee() == null) {
             return null;
@@ -205,59 +297,129 @@ public class TaskPlanningView extends VerticalLayout {
         if (member == null) {
             return null;
         }
-        String status = fields.status() == null || fields.status().name() == null ? "Sin estado" : fields.status().name();
+        String status = fields.status() == null || fields.status().name() == null ? "No status" : fields.status().name();
         LocalDate scheduledStart = schedule == null ? null : schedule.startDate();
         LocalDate jiraStart = parseDate(fields.customField(jiraProperties.fieldTargetStart()));
         if (jiraStart == null) {
             jiraStart = parseDate(fields.customField(jiraProperties.fieldFirstTimeInProgress()));
         }
+        LocalDate effectiveStart = scheduledStart == null ? jiraStart : scheduledStart;
         TaskStack localStack = schedule == null ? null : schedule.localStack();
-        TaskStackResolver.Resolution stack = taskStackResolver.resolve(localStack, fields.labels(), member.role());
-        return new TaskPlan(issue.key(), fields.summary() == null ? issue.key() : fields.summary(), member.name(), member.username(), member.role(), status,
-                scheduledStart, schedule == null ? null : schedule.endDate(),
-                isInProgress(status), scheduledStart == null ? jiraStart : scheduledStart,
-                fields.labels(), localStack, stack.stack(), stack.source());
+        return new TaskPlan(EffortEstimates.isSubtask(fields) ? PlanningKind.SUBTASK : PlanningKind.TASK, issue.key(),
+                fields.summary() == null ? issue.key() : fields.summary(),
+                member.name(), member.username(), member.role(), status,
+                effectiveStart, schedule == null ? null : schedule.endDate(),
+                EffortEstimates.jiraMd(fields), schedule == null ? null : schedule.effortMd(),
+                fields.labels(), localStack);
+    }
+
+    private TaskPlan toEpicPlan(JiraIssueDto issue, TargetStartRepository.Schedule schedule) {
+        JiraIssueDto.Fields fields = issue.fields();
+        if (issue.key() == null || fields == null) {
+            return null;
+        }
+        String status = fields.status() == null || fields.status().name() == null
+                ? "No status" : fields.status().name();
+        LocalDate start = schedule == null ? null
+                : schedule.startDate();
+        if (start == null) {
+            start = parseDate(fields.customField(jiraProperties.fieldTargetStart()));
+        }
+        LocalDate end = schedule == null ? null : schedule.endDate();
+        if (end == null) {
+            end = parseDate(fields.duedate());
+        }
+        return new TaskPlan(PlanningKind.EPIC, issue.key(),
+                fields.summary() == null ? issue.key() : fields.summary(),
+                "Team", null, null, status, start, end, null,
+                null, List.of(), null);
+    }
+
+    private void refreshAssigneeFilter() {
+        List<String> assignees = plans.stream()
+                .filter(plan -> plan.kind() != PlanningKind.EPIC)
+                .map(TaskPlan::assignee)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .sorted(String.CASE_INSENSITIVE_ORDER)
+                .toList();
+        String selectedAssignee = assigneeFilter.getValue();
+        assigneeFilter.setItems(assignees);
+        if (selectedAssignee != null && assignees.contains(selectedAssignee)) {
+            assigneeFilter.setValue(selectedAssignee);
+        }
+    }
+
+    private void applyFilters() {
+        PlanningKind selectedKind = typeFilter.getValue();
+        String issueQuery = issueFilter.getValue() == null
+                ? "" : issueFilter.getValue().trim().toUpperCase(Locale.ROOT);
+        String selectedAssignee = assigneeFilter.getValue();
+        List<TaskPlan> filteredPlans = plans.stream()
+                .filter(plan -> selectedKind == null || selectedKind == PlanningKind.ALL
+                        || plan.kind() == selectedKind)
+                .filter(plan -> issueQuery.isEmpty()
+                        || plan.issueKey().toUpperCase(Locale.ROOT).contains(issueQuery))
+                .filter(plan -> selectedAssignee == null || selectedAssignee.equals(plan.assignee()))
+                .toList();
+        grid.setItems(filteredPlans);
+        // Keep short filtered lists close to their editor without changing grid virtualization.
+        int contentHeight = 64 + Math.min(filteredPlans.size(), 10) * 52;
+        grid.setHeight("clamp(120px, " + contentHeight + "px, min(48vh, 540px))");
+        if (selected != null && !filteredPlans.contains(selected)) {
+            grid.deselectAll();
+            selectTask(null);
+        }
     }
 
     private void selectTask(TaskPlan plan) {
         selected = plan;
         boolean taskSelected = plan != null;
-        startField.setEnabled(taskSelected && !plan.startLocked());
+        boolean epicSelected = taskSelected && plan.kind() == PlanningKind.EPIC;
+        startField.setEnabled(taskSelected);
         endField.setEnabled(taskSelected);
-        localStackField.setEnabled(taskSelected);
-        saveButton.setEnabled(taskSelected && (!plan.startLocked() || plan.lockedStartDate() != null));
-        startField.setValue(taskSelected
-                ? (plan.startLocked() ? plan.lockedStartDate() : plan.startDate())
-                : null);
+        boolean subtaskSelected = taskSelected && plan.kind() == PlanningKind.SUBTASK;
+        effortField.setEnabled(subtaskSelected);
+        localStackField.setEnabled(taskSelected && !epicSelected);
+        saveButton.setEnabled(taskSelected);
+        startField.setValue(taskSelected ? plan.startDate() : null);
         endField.setValue(taskSelected ? plan.endDate() : null);
-        jiraStackField.setValue(taskSelected
+        effortField.setValue(subtaskSelected ? plan.effortMd() : null);
+        jiraStackField.setValue(taskSelected && !epicSelected
                 ? taskStackResolver.classifyJira(plan.jiraLabels()).displayLabel()
                 : "");
-        roleStackField.setValue(taskSelected ? plan.assignee() + " · " + plan.role().label() : "");
-        localStackField.setValue(taskSelected ? plan.localStack() : null);
+        roleStackField.setValue(taskSelected && !epicSelected
+                ? plan.assignee() + " · " + plan.role().label() : "");
+        localStackField.setValue(taskSelected && !epicSelected ? plan.localStack() : null);
         updateEffectiveStack();
         if (!taskSelected) {
-            selectedTask.setText("Elegí una tarea de la tabla.");
-        } else if (plan.startLocked()) {
-            selectedTask.setText(plan.lockedStartDate() == null
-                    ? plan.issueKey() + " está In Progress, pero Jira no informó su inicio. No se puede guardar."
-                    : plan.issueKey() + " está In Progress. Su inicio queda bloqueado en "
-                    + format(plan.lockedStartDate()) + ".");
+            selectedTask.setText("Select an Epic, task or subtask from the table.");
+        } else if (epicSelected) {
+            selectedTask.setText(plan.issueKey() + " · " + plan.summary()
+                    + ": define the Epic duration. "
+                    + "It does not require an assignee, stack, or effort.");
         } else {
-            selectedTask.setText(plan.issueKey() + ": cargá las fechas y, si hace falta, sobrescribí el stack heredado.");
+            selectedTask.setText(plan.issueKey() + " · " + plan.summary()
+                    + ": enter or reschedule the dates and, if needed, "
+                    + "override the inherited stack.");
         }
     }
 
     private void updateEffectiveStack() {
         if (selected == null) {
-            effectiveStack.setText("Stack efectivo: -");
+            effectiveStack.setText("Effective stack: -");
             effectiveStack.getStyle().set("background", "#EDF7EE").set("color", "#2E7D32");
+            return;
+        }
+        if (selected.kind() == PlanningKind.EPIC) {
+            effectiveStack.setText("Team initiative: does not consume capacity.");
+            effectiveStack.getStyle().set("background", "#E8F2F6").set("color", GanttStyle.PRIMARY_900);
             return;
         }
         TaskStackResolver.Resolution resolution = taskStackResolver.resolve(
                 localStackField.getValue(), selected.jiraLabels(), selected.role());
-        effectiveStack.setText("Stack efectivo: " + resolution.stack().label()
-                + " · fuente: " + resolution.source().label());
+        effectiveStack.setText("Effective stack: " + resolution.stack().label()
+                + " · source: " + resolution.source().label());
         switch (resolution.stack()) {
             case AMBIGUOUS -> effectiveStack.getStyle()
                     .set("background", "#FDECEA").set("color", "#B3261E");
@@ -272,35 +434,45 @@ public class TaskPlanningView extends VerticalLayout {
         if (selected == null) {
             return;
         }
-        LocalDate startDate = selected.startLocked() ? selected.lockedStartDate() : startField.getValue();
+        LocalDate startDate = startField.getValue();
         LocalDate endDate = endField.getValue();
+        boolean epic = selected.kind() == PlanningKind.EPIC;
+        // Preserve legacy values on standard tasks without using them as estimates.
+        Double effortMd = epic ? null : selected.kind() == PlanningKind.SUBTASK
+                ? effortField.getValue() : selected.effortMd();
         if (startDate == null || endDate == null) {
-            showError("Completá las fechas de inicio y fin.");
+            showError("Enter both start and end dates.");
             return;
         }
         if (endDate.isBefore(startDate)) {
-            showError("La fecha de fin no puede ser anterior a la de inicio.");
+            showError("The end date cannot be earlier than the start date.");
+            return;
+        }
+        if (selected.kind() == PlanningKind.SUBTASK && effortMd != null
+                && (!Double.isFinite(effortMd) || effortMd <= 0)) {
+            showError("Local effort must be greater than 0 MD.");
             return;
         }
         String key = selected.issueKey();
         try {
-            Predicate<LocalDate> absent = RoadmapSnapshot.calendar(absenceRepository.findAll(), selected.username());
-            if (WorkContour.capacityHours(startDate, endDate, absent) <= 0) {
-                showError("La ventana no tiene días disponibles para esta persona. Revisá fines de semana y ausencias.");
-                return;
+            if (!epic) {
+                Predicate<LocalDate> absent = RoadmapSnapshot.calendar(
+                        absenceRepository.findAll(), selected.username());
+                if (WorkContour.capacityHours(startDate, endDate, absent) <= 0) {
+                    showError("This window has no available days for this person. "
+                            + "Check weekends and absences.");
+                    return;
+                }
             }
-            scheduleRepository.saveSchedule(key, startDate, endDate, localStackField.getValue());
+            scheduleRepository.saveSchedule(key, startDate, endDate,
+                    epic ? null : localStackField.getValue(), effortMd);
         } catch (RuntimeException e) {
             LOG.error("Saving schedule failed for {}", key, e);
-            showError("No se guardaron las fechas de " + key + ". Conservamos el formulario; podés reintentar.");
+            showError("The dates for " + key + " were not saved. The form was preserved; you can retry.");
             return;
         }
-        if (reloadTasks()) showSuccess("Planificación guardada para " + key + ".");
-        else showError("La planificación de " + key + " se guardó, pero falló la recarga. Usá Actualizar tareas.");
-    }
-
-    private boolean isInProgress(String status) {
-        return "In Progress".equalsIgnoreCase(status);
+        if (reloadTasks()) showSuccess("Plan saved for " + key + ".");
+        else showError("The plan for " + key + " was saved, but refresh failed. Use Refresh.");
     }
 
     private LocalDate parseDate(String rawDate) {
@@ -318,6 +490,27 @@ public class TaskPlanningView extends VerticalLayout {
         return date == null ? "-" : DATE_FORMAT.format(date);
     }
 
+    private String formatWindow(TaskPlan plan) {
+        if (plan.startDate() == null && plan.endDate() == null) {
+            return "Not planned";
+        }
+        return format(plan.startDate()) + " - " + format(plan.endDate());
+    }
+
+    private String formatMd(Double md) {
+        if (md == null) {
+            return "-";
+        }
+        return md == Math.rint(md)
+                ? Math.round(md) + " MD"
+                : String.format(Locale.ROOT, "%.2f MD", md);
+    }
+
+    private String jiraIssueUrl(String issueKey) {
+        String baseUrl = jiraProperties.baseUrl().trim();
+        return (baseUrl.endsWith("/") ? baseUrl : baseUrl + "/") + "browse/" + issueKey;
+    }
+
     private void showSuccess(String message) {
         Notification notification = Notification.show(message, 3000, Notification.Position.BOTTOM_START);
         notification.addThemeVariants(NotificationVariant.LUMO_SUCCESS);
@@ -328,10 +521,26 @@ public class TaskPlanningView extends VerticalLayout {
         notification.addThemeVariants(NotificationVariant.LUMO_ERROR);
     }
 
-    private record TaskPlan(String issueKey, String summary, String assignee, String username,
+    private enum PlanningKind {
+        ALL("All"),
+        EPIC("Epic"),
+        TASK("Task"),
+        SUBTASK("Subtask");
+
+        private final String label;
+
+        PlanningKind(String label) {
+            this.label = label;
+        }
+
+        String label() {
+            return label;
+        }
+    }
+
+    private record TaskPlan(PlanningKind kind, String issueKey, String summary, String assignee, String username,
                             Role role, String status,
-                            LocalDate startDate, LocalDate endDate, boolean startLocked,
-                            LocalDate lockedStartDate, List<String> jiraLabels, TaskStack localStack,
-                            TaskStack effectiveStack, TaskStackSource stackSource) {
+                            LocalDate startDate, LocalDate endDate, Double jiraEffortMd, Double effortMd,
+                            List<String> jiraLabels, TaskStack localStack) {
     }
 }

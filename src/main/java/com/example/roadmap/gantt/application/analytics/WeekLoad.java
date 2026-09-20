@@ -1,5 +1,6 @@
 package com.example.roadmap.gantt.application.analytics;
 
+import com.example.roadmap.gantt.application.model.WorkContour;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -53,6 +54,26 @@ public record WeekLoad(
         double carriedOverHours,
         List<TaskLoad> tasks) {
 
+    public LoadSignal loadSignal() {
+        return LoadSignal.of(assignedHours, capacityHours,
+                WorkContour.PRODUCTIVE_HOURS_PER_DAY);
+    }
+
+    public double criticalCapacityHours() {
+        return capacityHours * LoadSignal.CRITICAL_HOURS_PER_DAY
+                / WorkContour.PRODUCTIVE_HOURS_PER_DAY;
+    }
+
+    /** Portion between 6 and 8 hours per available day. */
+    public double warningBandHours() {
+        return Math.max(0, Math.min(assignedHours, criticalCapacityHours()) - capacityHours);
+    }
+
+    /** Portion strictly above 8 hours per available day. */
+    public double criticalOverflowHours() {
+        return Math.max(0, assignedHours - criticalCapacityHours());
+    }
+
     /**
      * Hours that can still be committed, counted only from today onwards. Zero once the week
      * is overbooked - and also zero for a week that is already over, which is the point.
@@ -69,6 +90,14 @@ public record WeekLoad(
     /** Hours demanded beyond capacity; zero when the week fits. */
     public double overflowHours() {
         return Math.max(0, assignedHours - capacityHours);
+    }
+
+    /**
+     * Work still owed that does not fit in the productive capacity remaining from today.
+     * Unlike {@link #overflowHours()}, this is actionable during a partially elapsed week.
+     */
+    public double outsideRemainingCapacityHours() {
+        return Math.max(0, remainingAssignedHours - remainingCapacityHours);
     }
 
     /** {@code true} when the week has no capacity at all, e.g. a full week of absence. */

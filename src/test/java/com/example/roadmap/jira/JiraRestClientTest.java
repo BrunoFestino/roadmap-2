@@ -14,7 +14,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
 
 class JiraRestClientTest {
     private static final JiraProperties PROPERTIES = new JiraProperties(
-            "http://synthetic.invalid", "test", "TTAR", null, null);
+            "http://synthetic.invalid", "test", "DEMO", null, null);
 
     @Test void requestsAndReadsJiraLabels() {
         var builder = RestClient.builder().baseUrl("http://synthetic.invalid");
@@ -27,7 +27,7 @@ class JiraRestClientTest {
                         """, MediaType.APPLICATION_JSON));
 
         var issue = new JiraRestClient(builder.build(), PROPERTIES)
-                .searchOpenIssuesByAssignees("TTAR", List.of("test")).issues().getFirst();
+                .searchOpenIssuesByAssignees("DEMO", List.of("test")).issues().getFirst();
 
         assertThat(issue.fields().labels()).containsExactly("BE", "roadmap");
         server.verify();
@@ -42,7 +42,7 @@ class JiraRestClientTest {
         server.expect(request -> assertThat(request.getURI().getQuery()).contains("startAt=100"))
                 .andRespond(withSuccess("{\"startAt\":100,\"maxResults\":100,\"total\":101,\"issues\":[{\"key\":\"T-100\"}]}", MediaType.APPLICATION_JSON));
         assertThat(new JiraRestClient(builder.build(), PROPERTIES)
-                .searchOpenIssuesByAssignees("TTAR", List.of("test")).issues()).hasSize(101);
+                .searchOpenIssuesByAssignees("DEMO", List.of("test")).issues()).hasSize(101);
         server.verify();
     }
 
@@ -50,7 +50,7 @@ class JiraRestClientTest {
         var builder = RestClient.builder().baseUrl("http://synthetic.invalid");
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(request -> {}).andRespond(withStatus(HttpStatus.UNAUTHORIZED));
-        assertThatThrownBy(() -> new JiraRestClient(builder.build(), PROPERTIES).searchOpenMilestones("TTAR"))
+        assertThatThrownBy(() -> new JiraRestClient(builder.build(), PROPERTIES).searchOpenMilestones("DEMO"))
                 .isInstanceOf(HttpClientErrorException.Unauthorized.class);
         server.verify();
     }
@@ -59,28 +59,44 @@ class JiraRestClientTest {
         var builder = RestClient.builder().baseUrl("http://synthetic.invalid");
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(request -> {}).andRespond(withSuccess("{\"startAt\":0,\"maxResults\":100,\"total\":0,\"issues\":[]}", MediaType.APPLICATION_JSON));
-        assertThat(new JiraRestClient(builder.build(), PROPERTIES).searchOpenMilestones("TTAR").issues()).isEmpty();
+        assertThat(new JiraRestClient(builder.build(), PROPERTIES).searchOpenMilestones("DEMO").issues()).isEmpty();
         server.verify();
     }
 
     @Test void requestsAndCapturesConfiguredCustomFields() {
-        var configured = new JiraProperties("http://synthetic.invalid", "test", "TTAR", null, null,
-                "customfield_9001", "customfield_9002", "customfield_9003", "customfield_9004");
+        var configured = new JiraProperties("http://synthetic.invalid", "test", "DEMO", null, null,
+                "customfield_9001", "customfield_9002", "customfield_9003", "customfield_9004", "customfield_9005");
         var builder = RestClient.builder().baseUrl("http://synthetic.invalid");
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(request -> assertThat(request.getURI().getQuery())
-                        .contains("customfield_9001", "customfield_9002", "customfield_9003", "customfield_9004"))
+                        .contains("customfield_9001", "customfield_9002", "customfield_9003", "customfield_9004", "customfield_9005"))
                 .andRespond(withSuccess("""
                         {"startAt":0,"maxResults":100,"total":1,"issues":[
-                          {"key":"T-1","fields":{"customfield_9001":"8","customfield_9003":"2026-09-21"}}
+                          {"key":"T-1","fields":{"customfield_9001":"8","customfield_9004":"2026-09-21"}}
                         ]}
                         """, MediaType.APPLICATION_JSON));
 
         var fields = new JiraRestClient(builder.build(), configured)
-                .searchOpenIssuesByAssignees("TTAR", List.of("test")).issues().getFirst().fields();
+                .searchOpenIssuesByAssignees("DEMO", List.of("test")).issues().getFirst().fields();
 
         assertThat(fields.customField(configured.fieldEffortEstimate())).isEqualTo("8");
         assertThat(fields.customField(configured.fieldTargetStart())).isEqualTo("2026-09-21");
+        server.verify();
+    }
+
+    @Test void workloadQueryIncludesFinalizedSubtasksButKeepsParentTasksOpenOnly() {
+        var builder = RestClient.builder().baseUrl("http://synthetic.invalid");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(request -> {
+                    String query = request.getURI().getQuery();
+                    assertThat(query).contains("issuetype IN subTaskIssueTypes()", "status NOT IN");
+                    assertThat(query.indexOf("status NOT IN")).isLessThan(query.indexOf("OR issuetype IN subTaskIssueTypes()"));
+                })
+                .andRespond(withSuccess("{\"startAt\":0,\"maxResults\":100,\"total\":0,\"issues\":[]}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(new JiraRestClient(builder.build(), PROPERTIES)
+                .searchWorkloadIssuesByAssignees("DEMO", List.of("test")).issues()).isEmpty();
         server.verify();
     }
 }

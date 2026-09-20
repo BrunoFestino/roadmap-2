@@ -1,140 +1,287 @@
-# Roadmap AR1
+# Team Roadmap
 
-POC interna con Spring Boot, Vaadin y PostgreSQL. Lee issues de Jira y guarda localmente las fechas y las ausencias. No escribe en Jira.
+Aplicación de planificación que combina tareas de Jira, fechas planificadas localmente
+y ausencias para mostrar el roadmap y la carga del equipo. La interfaz está en inglés.
 
-## Requisitos y arranque
+## Guía para Tony: presentación y consulta rápida
 
-- JDK 21, con `JAVA_HOME` configurado.
-- Maven 3.9 o el wrapper `mvnw.cmd` en Windows / `./mvnw` en Linux.
-- PostgreSQL y acceso a Jira. El puerto de base predeterminado es 5433, para el túnel SSH del equipo.
+Esta guía describe el comportamiento implementado al **20 de septiembre de 2026**.
+La primera parte sirve para presentar el producto; al final se conservan las
+instrucciones técnicas de configuración y despliegue.
 
-Copiá `.env.example` como `.env` y completá los valores obligatorios. Compose carga ese archivo automáticamente. Para ejecutar directamente desde Maven o el IDE, cargá las mismas variables en el proceso. `.env` está ignorado por Git y nunca debe contenerse en una imagen.
+### Qué resuelve
 
-Desarrollo:
+Permite responder qué trabajo está previsto, quién tiene capacidad y dónde hay
+sobrecarga o información pendiente. Jira sigue siendo la fuente de tareas,
+responsables, estados y horas registradas. La app guarda en PostgreSQL las fechas
+locales, el stack, las estimaciones locales de subtareas y las ausencias.
 
-```powershell
-.\mvnw.cmd vaadin:prepare-frontend spring-boot:run
-```
+**No escribe cambios en Jira ni es un reporte histórico de horas trabajadas.**
+Tampoco cambia automáticamente responsables o fechas para resolver una sobrecarga.
 
-Build completo y ejecución:
+### Recorrido sugerido para presentar en 10 minutos
 
-```powershell
-.\mvnw.cmd clean verify -Pproduction
-java -jar target/roadmap-0.0.1-SNAPSHOT.jar
-```
+1. **Roadmap** (`/`): mostrar las iniciativas y ventanas del Gantt. Explicar que
+   una barra larga representa una ventana de fechas, no dedicación exclusiva.
+2. **Team workload**: expandir un rol y una persona para explicar las horas por
+   semana y las tareas que las componen. Mostrar también el gráfico de esfuerzo.
+   Un promedio sano del rol puede esconder una persona sobrecargada.
+3. **Plan tasks** (`/gantt/planning`): buscar un ID, seleccionar una tarea y
+   mostrar Start, End y Local stack. Cambiar Show a Subtask para mostrar Local
+   effort. Guardar mantiene los filtros de la vista; no persisten al recargar
+   el navegador o salir de la pantalla.
+4. **Team availability** (`/gantt/availability`): mostrar cómo una ausencia reduce
+   la capacidad. Volver a Roadmap o usar Refresh roadmap para ver el recálculo.
+5. **Needs attention** e **Information** (`/information`): cerrar mostrando dónde
+   consultar datos faltantes y ejemplos de las reglas que siguen los cálculos.
 
-Rutas: `/` para roadmap, `/gantt/planning` para fechas, `/gantt/availability` para ausencias. Usá Actualizar para cargar los cambios de otras sesiones. Las ediciones siguen la regla de último guardado; aún no hay control de versiones concurrentes.
+### Reglas que conviene poder explicar
 
-## Configuración
+#### Esfuerzo y capacidad no son lo mismo
 
-Todas las variables usan el prefijo `ROADMAP_`. Los secretos no tienen valores predeterminados.
+- **1 MD = 8 horas de esfuerzo.** MD es una unidad de estimación, no un día de calendario.
+- La capacidad para planificar es **6 horas productivas por persona y día hábil**.
+  Una semana de cinco días sin ausencias ofrece 30 h, no 40 h.
+- Team workload muestra **8 semanas a partir del lunes de la semana actual**.
+  Excluye fines de semana y ausencias registradas de los días disponibles.
+- Las tareas normales usan **Original Estimate de Jira Time Tracking**. El
+  custom field de MD y las estimaciones locales no reemplazan ese valor.
+- Las subtareas usan **Local effort**, en MD. Su Original Estimate de Jira no se
+  usa para estimarlas. Si no tienen estimación local positiva, pueden heredar
+  una parte del presupuesto disponible de su tarea padre.
+- El trabajo pendiente es el esfuerzo efectivo menos las horas registradas en
+  Jira, con mínimo cero. Registrar horas no reduce la estimación original.
 
-| Variable | Qué configura | Requisito | Default |
-| --- | --- | --- | --- |
-| `ROADMAP_SERVER_PORT` | Puerto HTTP de Spring Boot | Opcional | `8082` |
-| `ROADMAP_LOG_LEVEL` | Nivel de log de `com.example.roadmap` | Opcional | `INFO` |
-| `ROADMAP_VAADIN_LAUNCH_BROWSER` | Apertura automática del navegador local | Opcional | `false` |
-| `ROADMAP_JIRA_BASE_URL` | URL base de Jira, sin `/rest/api/2/search` | Obligatoria | Ninguno |
-| `ROADMAP_JIRA_TOKEN` | Bearer token de Jira | Obligatoria, secreto | Ninguno |
-| `ROADMAP_JIRA_PROJECT` | Project key usado en el JQL | Opcional | `TTAR` |
-| `ROADMAP_JIRA_CONNECT_TIMEOUT` | Tiempo máximo para conectar con Jira | Opcional | `10s` |
-| `ROADMAP_JIRA_READ_TIMEOUT` | Tiempo máximo para leer una respuesta de Jira | Opcional | `30s` |
-| `ROADMAP_DB_URL` | URL JDBC completa. Si existe, reemplaza host, puerto y nombre | Opcional | Derivada |
-| `ROADMAP_DB_HOST` | Host de PostgreSQL cuando no hay URL completa | Opcional | `127.0.0.1` |
-| `ROADMAP_DB_PORT` | Puerto de PostgreSQL cuando no hay URL completa | Opcional | `5433` |
-| `ROADMAP_DB_NAME` | Nombre de la base cuando no hay URL completa | Opcional | `roadmap` |
-| `ROADMAP_DB_USERNAME` | Usuario de PostgreSQL | Obligatoria | Ninguno |
-| `ROADMAP_DB_PASSWORD` | Password de PostgreSQL | Obligatoria, secreto | Ninguno |
-| `ROADMAP_DB_POOL_SIZE` | Máximo de conexiones Hikari | Opcional | `5` |
-| `ROADMAP_TEAM_MEMBERS` | Roster completo consultado y mostrado por el roadmap | Opcional | Roster AR1 actual |
-| `ROADMAP_STACK_ALIASES_FRONTEND` | Labels de Jira interpretados como Front | Opcional | `front,frontend,...` |
-| `ROADMAP_STACK_ALIASES_BACKEND` | Labels de Jira interpretados como BE | Opcional | `be,backend,...` |
-| `ROADMAP_STACK_ALIASES_MOBILE` | Labels de Jira interpretados como Mobile | Opcional | `mobile,stack mobile` |
-| `ROADMAP_STACK_ALIASES_DEVOPS` | Labels de Jira interpretados como DevOps | Opcional | `devops,dev ops,stack devops` |
+#### Padre y subtareas: primero estimaciones, después reparto del saldo
 
-### Roster
+Ejemplo sin trabajo registrado ni subtareas finalizadas:
 
-`ROADMAP_TEAM_MEMBERS` contiene todos los integrantes en una sola variable para poder agregar, quitar o modificar personas desde la VM. Cada entrada usa `usuario Jira|nombre visible|rol` y las entradas se separan con comas:
+- Padre: 10 MD. Subtarea A: 3 MD locales. B y C: sin estimación local.
+- A conserva 3 MD. B y C reciben 3,5 MD cada una. El padre agrega 0 MD de carga.
+- Total: **10 MD**, no 20 MD. El reparto heredado se calcula, no se guarda como
+  estimación local. El Gantt puede seguir mostrando los 10 MD originales del padre.
 
-```env
-ROADMAP_TEAM_MEMBERS=bfestino|Bruno Festino|MOBILE,rdente|Rodrigo Dente|DEVOPS
-```
+Si todas las subtareas tienen estimación (por ejemplo, 3 y 4 MD), el padre conserva
+los 3 MD restantes de carga. Si suman 13 MD frente a un padre de 10 MD, se respetan
+los 13 MD, el padre aporta cero y se muestra una advertencia de presupuesto.
 
-Los roles permitidos son `FRONTEND`, `BACKEND`, `MOBILE` y `DEVOPS`. El orden de la variable es el orden visual del equipo. La aplicación rechaza al iniciar entradas incompletas, roles desconocidos y usernames duplicados.
+Las subtareas finalizadas consumen primero sus horas registradas; si no tienen,
+su estimación local. Ese consumo se descuenta antes de repartir el saldo entre
+subtareas abiertas sin estimación. Epics y User Stories son contexto, no padres
+que aporten este presupuesto ejecutable.
 
-### Campos personalizados de Jira
+#### Distribución de horas: considera las otras tareas de la persona
 
-Estos IDs dependen del esquema de la instancia de Jira y aceptan el formato `customfield_<número>`:
+No reparte cada tarea por igual sin mirar el resto. Prioriza las ventanas con menos
+margen y distribuye horas en los días con menor carga. Si aparece una sobrecarga,
+intenta redistribuir las asignaciones dentro de las ventanas permitidas para
+encontrar un encaje con la capacidad disponible.
 
-| Variable | Campo esperado | Uso en el roadmap | Default actual |
-| --- | --- | --- | --- |
-| `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE` | Estimación de esfuerzo en MD | Calcula el esfuerzo pendiente de una tarea | `customfield_14230` |
-| `ROADMAP_JIRA_FIELD_EPIC_LINK` | Clave de la épica relacionada | Agrupa tareas bajo su épica | `customfield_10830` |
-| `ROADMAP_JIRA_FIELD_TARGET_START` | Target Start | Fecha Jira preferida cuando no hay planificación local | `customfield_12832` |
-| `ROADMAP_JIRA_FIELD_FIRST_TIME_IN_PROGRESS` | Primera entrada a In Progress | Inicio alternativo para tareas actualmente In Progress | `customfield_13034` |
+Ejemplo con la misma persona, semanas completas, sin ausencias:
 
-La consulta solicita los IDs configurados y la respuesta se interpreta con esos mismos IDs. Los cuatro deben ser distintos. Cambiarlos no requiere recompilar.
+- A requiere 30 h y puede hacerse en las semanas 1 y 2.
+- B requiere 30 h y solo puede hacerse en la semana 2.
+- Resultado: **A ocupa 30 h en la semana 1; B ocupa 30 h en la semana 2**.
 
-### Aliases de stack
+Busca equilibrar la carga, no terminar todo lo antes posible. Con A de 20 h y B
+de 10 h en esas mismas ventanas, asigna 15 h de A en la primera semana y 5 h de A
+más 10 h de B en la segunda. Si el trabajo no cabe, mantiene visible la sobrecarga:
+no mueve fechas, no reasigna personas ni inventa capacidad. Es una distribución
+de horas divisibles, no una garantía de ejecución que modele dependencias entre tareas.
 
-Cada variable `ROADMAP_STACK_ALIASES_*` es una lista de labels Jira separados por comas. La comparación ignora mayúsculas, guiones, guiones bajos y espacios repetidos. Un alias no puede pertenecer a dos stacks diferentes. Labels reconocidos de stacks distintos producen `Stack ambiguo`, igual que antes.
+#### Cómo leer porcentajes, colores y disponibilidad
 
-## Docker Compose y OpenStack
+- Utilización semanal = horas planificadas / capacidad semanal × 100.
+  Por ejemplo, 25 h / 30 h = 83,3% (la interfaz redondea el porcentaje).
+- Con cinco días disponibles: verde hasta 30 h inclusive; amarillo por encima
+  de 30 h y hasta 40 h inclusive; rojo por encima de 40 h.
+- Los límites se ajustan a los días disponibles: con tres días son 18 h y 24 h.
+  El umbral rojo **no aumenta la capacidad planificable de 6 h diarias**.
+- El porcentaje describe la semana completa. Las horas libres consideran solo
+  hoy y los días futuros, descontando el trabajo pendiente. Hoy cuenta como un
+  día completo; las horas no usadas de días pasados no se recuperan.
+- Ejemplo al miércoles: quedan 18 h de capacidad de miércoles a viernes y 12 h
+  pendientes; hay 6 h libres. La carga planificada de toda la semana puede ser distinta.
+- **Free from** identifica el primer día disponible con menos de 80% de carga
+  pendiente, dentro de una semana con capacidad libre. Es una regla distinta
+  del semáforo. El total disponible por persona empieza en esa fecha y termina
+  al cerrar el horizonte de ocho semanas.
 
-En una VM con Docker y Docker Compose:
+#### Fechas y límites importantes
+
+- Start local prevalece sobre Jira Target Start. First Time In Progress solo
+  sirve como alternativa si la tarea está actualmente In Progress.
+- Sin inicio, una tarea va a Needs attention y no entra en la carga fechada.
+  Con inicio pero sin End local se calcula una ventana provisional a partir
+  del esfuerzo y los días disponibles; sigue faltando confirmar la fecha final.
+- Una subtarea sin fechas puede reservar presupuesto del padre aunque todavía
+  no aparezca en la carga por semana. Revisar Needs attention antes de comprometer trabajo.
+- Done, Cancelled, Resolved, Closed y Obsolete no agregan carga futura; las
+  subtareas finalizadas pueden seguir consumiendo presupuesto del padre.
+  Blocked no es un estado final.
+- Si toda la ventana ya pasó o no contiene días disponibles, la app no traslada
+  automáticamente el trabajo pendiente al futuro: hay que revisar las fechas.
+- No sumar a mano las estimaciones del Gantt para obtener capacidad: el workload
+  aplica el descuento padre/subtareas y el Gantt conserva las ventanas y estimaciones.
+- El alcance es el equipo configurado: tareas sin responsable o asignadas fuera
+  de ese equipo no se cuentan. By role agrupa el Gantt por stack efectivo; Team
+  workload agrupa personas por el rol del equipo, que no cambia al editar un stack.
+- Los filtros de Needs attention solo afectan sus listas, no los totales de carga.
+  El histograma usa las mismas horas semanales que Team workload, pero cada persona
+  tiene su propia escala: comparar valores, no alturas entre gráficos de personas distintas.
+
+## Referencia técnica breve
+
+Java 21, Spring Boot 3.5.5, Vaadin 24.9.5, PostgreSQL y migraciones Flyway.
+La UI y los cálculos viven en el mismo proyecto; no hay que iniciar un frontend separado.
+
+- [JiraGanttDataProvider](src/main/java/com/example/roadmap/gantt/application/data/JiraGanttDataProvider.java): combina Jira, planificación local y ausencias.
+- [EffortEstimates](src/main/java/com/example/roadmap/gantt/application/model/EffortEstimates.java) y [SubtaskBudget](src/main/java/com/example/roadmap/gantt/application/model/SubtaskBudget.java): origen del esfuerzo y reparto padre/subtareas.
+- [LevelledContour](src/main/java/com/example/roadmap/gantt/application/model/LevelledContour.java) y [CapacityAllocation](src/main/java/com/example/roadmap/gantt/application/model/CapacityAllocation.java): distribución por persona y encaje de horas dentro de fechas.
+- [BuildWorkloadReportUseCase](src/main/java/com/example/roadmap/gantt/application/analytics/BuildWorkloadReportUseCase.java): carga semanal, capacidad y disponibilidad.
+- [InformationView](src/main/java/com/example/roadmap/gantt/ui/InformationView.java): ayuda dentro de la app.
+
+`./mvnw test` ejecuta las pruebas Java (`.\mvnw.cmd test` en Windows).
+`./mvnw -Pproduction package` ejecuta pruebas y empaqueta también el frontend de producción.
+
+## Configuración y despliegue con Jira real
+
+Las instrucciones siguientes permiten conectar la aplicación con Jira y PostgreSQL.
+
+## Prerequisites
+
+- Docker Engine with the Docker Compose plugin (recommended), or Java 21+
+- Jira Personal Access Token with read access to the configured project
+- PostgreSQL credentials
+
+## First run with Docker Compose
+
+1. Create the ignored runtime file and restrict its permissions:
+
+   ```bash
+   cp .env.example .env
+   chmod 600 .env
+   ```
+
+2. Set these required values in `.env`:
+
+   ```dotenv
+   ROADMAP_JIRA_BASE_URL=https://your-jira.example.com
+   ROADMAP_JIRA_TOKEN=your_personal_access_token
+   ROADMAP_DB_USERNAME=roadmap_user
+   ROADMAP_DB_PASSWORD=a-long-random-postgresql-password
+   ```
+
+   Review the five `ROADMAP_JIRA_FIELD_*` IDs, `ROADMAP_TEAM_MEMBERS`, and
+   `ROADMAP_STACK_ALIASES_*` values as well. They contain instance-specific
+   defaults and define the data rendered by the application.
+
+3. Build and start the application and its private PostgreSQL container:
+
+   ```bash
+   docker compose up --build -d
+   docker compose logs -f roadmap
+   ```
+
+   Open `http://localhost:8082`. Flyway initializes an empty database using the
+   migrations in `src/main/resources/db/migration` on the first start.
+
+   The database is intentionally not published to the host. Compose overrides
+   `ROADMAP_DB_HOST` and `ROADMAP_DB_PORT` to use the internal `postgres:5432`
+   service. Leave `ROADMAP_DB_URL` unset when using that database: a full JDBC URL
+   takes precedence over the host and port settings.
+
+Stop the stack with `docker compose down`. This preserves PostgreSQL data.
+Use `docker compose down -v` only when intentionally deleting all roadmap data
+and Flyway history.
+
+## Run locally against PostgreSQL on the VM
+
+Export the values below in the terminal that starts the application:
 
 ```bash
-cp .env.example .env
-# Editar .env y completar ROADMAP_JIRA_BASE_URL, ROADMAP_JIRA_TOKEN,
-# ROADMAP_DB_USERNAME y ROADMAP_DB_PASSWORD.
-docker compose up --build -d
-docker compose logs -f roadmap
+export ROADMAP_JIRA_BASE_URL=https://your-jira.example.com
+export ROADMAP_JIRA_TOKEN=your_personal_access_token
+export ROADMAP_DB_HOST=127.0.0.1
+export ROADMAP_DB_PORT=5433
+export ROADMAP_DB_NAME=roadmap
+export ROADMAP_DB_USERNAME=roadmap_user
+read -rsp "PostgreSQL password: " ROADMAP_DB_PASSWORD; export ROADMAP_DB_PASSWORD; echo
 ```
 
-Compose construye el backend con Java 21, inicia PostgreSQL 16 en una red interna y conserva sus datos en el volumen `roadmap-postgres-data`. Solo publica el puerto del backend. Dentro de Compose, la aplicación usa `postgres:5432`; fuera de Compose conserva los defaults del túnel local `127.0.0.1:5433`.
+Keep this SSH tunnel open in a separate terminal:
 
-El flujo de configuración es: `.env` de la VM, `compose.yml`, variables del contenedor, `application.properties`, Spring Boot. Para cambiar Jira, roster, aliases, puertos o timeouts no hace falta hacer `git pull` ni reconstruir la imagen. Modificá `.env` y recreá el contenedor con `docker compose up -d`.
-
-## Pruebas y demo sin credenciales
-
-```powershell
-.\mvnw.cmd clean test
+```bash
+ssh -N -L 127.0.0.1:5433:127.0.0.1:5432 -i ~/.ssh/example_key \
+  user@database.example.com
 ```
 
-Las pruebas Java no compilan el frontend. Cubren calendario, conservación de esfuerzo, disponibilidad, asignación, lecturas por actualización, Jira simulado y persistencia con PostgreSQL temporal real. La primera ejecución descarga los binarios de PostgreSQL; no requiere Docker ni usa tu base.
+Then run:
 
-Para la demo local y el E2E:
-
-```powershell
-.\mvnw.cmd test-compile -Pproduction dependency:build-classpath '-Dmdep.outputFile=target/test-classpath.txt'
-.\.tools\run-demo.ps1
+```bash
+./mvnw spring-boot:run
 ```
 
-La demo escucha en `http://127.0.0.1:18083`, usa issues sintéticos fechados en septiembre de 2026 y una base temporal nueva. Sus controles de fallos viven en `src/test`, solo se exponen en la demo local y no se empaquetan en la aplicación. Al cerrarla se descarta la base.
+The application is available at `http://localhost:8082` by default. Flyway
+creates and migrates an empty schema automatically.
 
-```powershell
-npm.cmd --prefix .tools ci
-node .tools/e2e.cjs
-```
+## Runtime configuration
 
-El E2E inicia un Chrome headless propio. Guarda capturas y resultados en `.tools/evidence`. Las pruebas escriben exclusivamente sobre la demo local.
+| Environment variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `ROADMAP_JIRA_BASE_URL` | Yes | None | Base URL of the Jira instance |
+| `ROADMAP_JIRA_TOKEN` | Yes | None | Jira PAT sent as a Bearer token |
+| `ROADMAP_JIRA_PROJECT` | No | `DEMO` | Jira project containing the roadmap |
+| `ROADMAP_JIRA_CONNECT_TIMEOUT` | No | `10s` | Jira connection timeout |
+| `ROADMAP_JIRA_READ_TIMEOUT` | No | `30s` | Jira response timeout |
+| `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE` | No | `customfield_10001` | Legacy field still requested from Jira; not used as the task estimate source (tasks use Time Tracking Original Estimate) |
+| `ROADMAP_JIRA_FIELD_EPIC_LINK` | No | `customfield_10002` | Jira field containing the epic link |
+| `ROADMAP_JIRA_FIELD_PARENT_MILESTONE` | No | `customfield_10003` | Jira field containing a parent milestone |
+| `ROADMAP_JIRA_FIELD_TARGET_START` | No | `customfield_10004` | Jira field containing target start |
+| `ROADMAP_JIRA_FIELD_FIRST_TIME_IN_PROGRESS` | No | `customfield_10005` | Jira field containing first in-progress date |
+| `ROADMAP_SERVER_PORT` | No | `8082` | HTTP server port |
+| `ROADMAP_VAADIN_LAUNCH_BROWSER` | No | `false` | Opens the browser when `true` |
+| `ROADMAP_DB_PASSWORD` | Yes | None | PostgreSQL password |
+| `ROADMAP_DB_URL` | No | Derived from host, port, and name | Full JDBC connection URL |
+| `ROADMAP_DB_HOST` | No | `127.0.0.1` | PostgreSQL host when no JDBC URL is set |
+| `ROADMAP_DB_PORT` | No | `5433` | PostgreSQL port when no JDBC URL is set |
+| `ROADMAP_DB_NAME` | No | `roadmap` | PostgreSQL database name |
+| `ROADMAP_DB_USERNAME` | Yes | None | PostgreSQL user |
+| `ROADMAP_DB_POOL_SIZE` | No | `5` | Maximum JDBC connections |
+| `ROADMAP_LOG_LEVEL` | No | `INFO` | Application log level |
+| `ROADMAP_TEAM_MEMBERS` | No | Example roster | `username\|display name\|role` entries separated by commas |
+| `ROADMAP_STACK_ALIASES_FRONTEND` | No | Built-in aliases | Comma-separated Jira labels |
+| `ROADMAP_STACK_ALIASES_BACKEND` | No | Built-in aliases | Comma-separated Jira labels |
+| `ROADMAP_STACK_ALIASES_MOBILE` | No | Built-in aliases | Comma-separated Jira labels |
+| `ROADMAP_STACK_ALIASES_DEVOPS` | No | Built-in aliases | Comma-separated Jira labels |
 
-## Reglas de cálculo
+Never commit Jira or database credentials. Schedules and absences are stored in
+PostgreSQL.
 
-- Una actualización toma una instantánea de tareas, hitos, planificación y ausencias. Las tres proyecciones reutilizan esos datos.
-- 1 MD = 8 horas de esfuerzo; capacidad = 6 horas por día hábil disponible. Sábados, domingos y ausencias completas no aportan capacidad. No se modelan medios días ni feriados adicionales.
-- Inicio: planificación local, luego el campo configurado por `ROADMAP_JIRA_FIELD_TARGET_START`, luego el campo configurado por `ROADMAP_JIRA_FIELD_FIRST_TIME_IN_PROGRESS` si está In Progress. El tooltip identifica el origen. Una tarea sin inicio queda en la bandeja pendiente y no entra en la capacidad.
-- Sin fin local se estima una ventana de MD días hábiles. Es un supuesto de duración, no una garantía de dedicación al 100%: esfuerzo y capacidad usan 8 h y 6 h respectivamente. La bandeja permite revisar estas fechas.
-- Esfuerzo normal: el campo configurado por `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE`, esfuerzo local, 3 MD. Las subtareas identificadas por parent usan esfuerzo local o 1 MD. Cero, negativos, NaN e infinito no son estimaciones válidas. Las fracciones positivas se redondean hacia arriba.
-- Pendiente = máximo entre cero y estimación menos horas registradas. Una tarea abierta con la estimación agotada se registra en el diagnóstico interno; no se asume que esté terminada. El roadmap no muestra un bloque de advertencias.
-- Epic y User Story son contexto y no consumen capacidad propia. El roster se carga desde `ROADMAP_TEAM_MEMBERS`. Estas convenciones deben coincidir con el uso del Jira del equipo.
-- La nivelación mantiene las fechas. Si el reparto inicial sobrecarga un día, una asignación de flujo máximo busca alternativas factibles. El exceso inevitable se conserva dentro de la ventana; si no hay ningún día disponible, las horas quedan sin ubicación y se advierten.
-- El plan semanal y el pendiente se acumulan por separado. Libre desde busca un día personal disponible con menos de 80% de carga pendiente y saldo semanal positivo. Solo cuenta horas desde esa fecha hasta el horizonte de ocho semanas. El trabajo sin fechas se muestra por separado. El esfuerzo vencido se conserva en el diagnóstico interno y no se suma a la capacidad futura.
+## Deploy on an OpenStack VM
 
-## Migraciones
+This deployment model runs the Compose stack on an OpenStack VM and does not
+expose PostgreSQL outside the container network.
 
-`V1__create_roadmap_tables.sql` crea las tablas, restricciones e índice sin seeds ni limpieza de datos. `V2__add_local_task_stack.sql` agrega el stack opcional de planificación y su restricción de valores. Flyway aplica ambas migraciones en orden y una base nueva arranca vacía.
+1. Create an Ubuntu 24.04 (or equivalent) VM with at least 2 vCPU, 4 GB RAM,
+   and persistent volume capacity for the image and PostgreSQL data. Associate
+   a floating IP only if external access is required.
+2. Install Docker Engine and the Docker Compose plugin on the VM. In the
+   OpenStack security group, allow TCP 22 only from administration networks and
+   TCP 8082 only from the intended users or reverse proxy. Do not open TCP 5432.
+   The image build needs outbound HTTPS access to Maven Central and `nodejs.org`.
+3. Transfer the project without `.env`, then create `/opt/roadmap/.env`
+   directly on the VM from `.env.example`. Populate the required production
+   values, use a unique strong database password, and set `chmod 600 .env`.
+4. In `/opt/roadmap`, start it with:
 
-## Alcance
+   ```bash
+   docker compose up --build -d
+   docker compose ps
+   docker compose logs --tail=200 roadmap
+   ```
 
-Se mantiene un módulo, Vaadin Flow y JdbcTemplate. Quedan como decisiones opcionales el control de concurrencia, medios días, feriados, filtros y actualización en segundo plano. Multiempresa, roles avanzados y alta disponibilidad están fuera del alcance de esta POC.
+5. For a public endpoint, put a TLS-terminating reverse proxy in front of port
+   8082 and configure its allowed origin and host settings before exposing it.
+   Back up the `roadmap-postgres-data` Docker volume before upgrades or any
+   `down -v` operation.

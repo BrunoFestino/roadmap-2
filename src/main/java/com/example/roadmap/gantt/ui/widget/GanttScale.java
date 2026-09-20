@@ -13,7 +13,8 @@ final class GanttScale {
 
     static int xOf(GanttChart chart, LocalDate date, int pixelsPerDay) {
         long days = chart.dayOffset(date);
-        return GanttStyle.LEFT_COL + (int) Math.round(days * (double) pixelsPerDay);
+        return GanttStyle.LEFT_COL + GanttStyle.TIMELINE_GAP
+                + (int) Math.round(days * (double) pixelsPerDay);
     }
 
     static int widthOf(LocalDate start, LocalDate end, int pixelsPerDay) {

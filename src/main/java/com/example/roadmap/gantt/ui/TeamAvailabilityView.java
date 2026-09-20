@@ -14,6 +14,7 @@ import com.vaadin.flow.component.combobox.ComboBox;
 import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.html.H1;
+import com.vaadin.flow.component.html.H2;
 import com.vaadin.flow.component.html.Span;
 import com.vaadin.flow.component.notification.Notification;
 import com.vaadin.flow.component.notification.NotificationVariant;
@@ -31,7 +32,7 @@ import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
 
 /**
- * Where the roadmap owner sets the AR1 team's absences (vacations, birthdays, sick leave,
+ * Where the roadmap owner sets the roadmap team's absences (vacations, birthdays, sick leave,
  * etc.) once, so they are loaded automatically on every future visit and can still be
  * edited or removed. Backed by {@link TeamAbsenceRepository}, which persists to PostgreSQL
  * rather than the browser session, so the data survives an app restart
@@ -41,22 +42,22 @@ import java.time.format.DateTimeFormatter;
  * when it schedules a person's chained tasks and computes each bar's planned end date.
  */
 @Route(value = "gantt/availability", layout = MainLayout.class)
-@PageTitle("Ausencias del equipo")
+@PageTitle("Team availability")
 public class TeamAvailabilityView extends VerticalLayout {
 
-    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("dd/MM/yyyy");
+    private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yyyy");
 
     private final transient TeamAbsenceRepository repository;
     private final transient GanttTeamRoster teamRoster;
 
     private final Grid<TeamAbsence> grid = new Grid<>();
-    private final ComboBox<TeamMember> memberField = new ComboBox<>("Persona");
-    private final ComboBox<AbsenceType> typeField = new ComboBox<>("Tipo");
-    private final DatePicker startField = new DatePicker("Desde");
-    private final DatePicker endField = new DatePicker("Hasta");
-    private final TextField noteField = new TextField("Nota (opcional)");
-    private final Button saveButton = new Button("Agregar");
-    private final Button cancelEditButton = new Button("Cancelar edición");
+    private final ComboBox<TeamMember> memberField = new ComboBox<>("Person");
+    private final ComboBox<AbsenceType> typeField = new ComboBox<>("Type");
+    private final DatePicker startField = new DatePicker("From");
+    private final DatePicker endField = new DatePicker("To");
+    private final TextField noteField = new TextField("Note (optional)");
+    private final Button saveButton = new Button("Add");
+    private final Button cancelEditButton = new Button("Cancel editing");
 
     private final Binder<FormValues> binder = new Binder<>(FormValues.class);
     private String editingId;
@@ -73,9 +74,11 @@ public class TeamAvailabilityView extends VerticalLayout {
         setSpacing(true);
         getStyle().set("font-family", GanttStyle.FONT).set("color", GanttStyle.INK);
 
-        Button reload = new Button("Actualizar ausencias", e -> refreshGrid());
+        Button reload = new Button("Refresh absences", e -> refreshGrid());
         reload.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
-        HorizontalLayout toolbar = new HorizontalLayout(reload);
+        H2 listTitle = new H2("Recorded absences");
+        listTitle.addClassName("section-title");
+        HorizontalLayout toolbar = new HorizontalLayout(listTitle, reload);
         toolbar.addClassNames("page-toolbar", "table-toolbar");
         add(title(), subtitle(), buildForm(), toolbar, grid);
         configureGrid();
@@ -84,15 +87,15 @@ public class TeamAvailabilityView extends VerticalLayout {
     }
 
     private H1 title() {
-        H1 h1 = new H1("Ausencias del equipo (AR1)");
+        H1 h1 = new H1("Team availability");
         h1.addClassName("page-title");
         h1.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-weight", "700");
         return h1;
     }
 
     private Span subtitle() {
-        Span span = new Span("Vacaciones, cumpleaños, licencias, etc. Se cargan una sola vez y "
-                + "el roadmap las tiene en cuenta automáticamente en cada visita.");
+        Span span = new Span("Vacations, birthdays, leave, and other absences are entered once and "
+                + "automatically included by the roadmap on every visit.");
         span.addClassName("page-subtitle");
         span.getStyle().set("color", GanttStyle.MUTED).set("font-size", "14px");
         return span;
@@ -112,7 +115,8 @@ public class TeamAvailabilityView extends VerticalLayout {
 
         startField.setRequiredIndicatorVisible(true);
         endField.setRequiredIndicatorVisible(true);
-        noteField.setPlaceholder("Ej: vacaciones. Se descuentan días completos.");
+        noteField.setPlaceholder("e.g. Family trip");
+        noteField.setHelperText("Full days are deducted.");
         noteField.setWidth("220px");
 
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
@@ -128,7 +132,9 @@ public class TeamAvailabilityView extends VerticalLayout {
         actions.addClassName("form-actions");
         actions.setSpacing(true);
 
-        VerticalLayout form = new VerticalLayout(fields, actions);
+        H2 formTitle = new H2("Absence details");
+        formTitle.addClassName("section-title");
+        VerticalLayout form = new VerticalLayout(formTitle, fields, actions);
         form.addClassNames("surface-card", "absence-form");
         form.setPadding(false);
         form.setSpacing(true);
@@ -138,14 +144,14 @@ public class TeamAvailabilityView extends VerticalLayout {
     }
 
     private void bindForm() {
-        binder.forField(memberField).asRequired("Elegí una persona").bind(FormValues::member, FormValues::member);
-        binder.forField(typeField).asRequired("Elegí un tipo").bind(FormValues::type, FormValues::type);
-        binder.forField(startField).asRequired("Elegí una fecha de inicio").bind(FormValues::startDate, FormValues::startDate);
-        binder.forField(endField).asRequired("Elegí una fecha de fin")
+        binder.forField(memberField).asRequired("Select a person").bind(FormValues::member, FormValues::member);
+        binder.forField(typeField).asRequired("Select a type").bind(FormValues::type, FormValues::type);
+        binder.forField(startField).asRequired("Select a start date").bind(FormValues::startDate, FormValues::startDate);
+        binder.forField(endField).asRequired("Select an end date")
                 .withValidator((end, ctx) -> {
                     LocalDate start = startField.getValue();
                     if (start != null && end != null && end.isBefore(start)) {
-                        return com.vaadin.flow.data.binder.ValidationResult.error("\"Hasta\" no puede ser anterior a \"Desde\"");
+                        return com.vaadin.flow.data.binder.ValidationResult.error("\"To\" cannot be earlier than \"From\"");
                     }
                     return com.vaadin.flow.data.binder.ValidationResult.ok();
                 })
@@ -159,24 +165,24 @@ public class TeamAvailabilityView extends VerticalLayout {
         try {
             binder.writeBean(values);
         } catch (ValidationException e) {
-            showError("Revisá los campos marcados en rojo.");
+            showError("Review the fields marked in red.");
             return;
         }
 
         try {
             if (editingId == null) {
                 repository.add(values.member.username(), values.startDate, values.endDate, values.type, values.note);
-                showSuccess("Ausencia agregada.");
+                showSuccess("Absence added.");
             } else {
                 repository.update(new TeamAbsence(editingId, values.member.username(), values.startDate,
                         values.endDate, values.type, values.note));
-                showSuccess("Ausencia actualizada.");
+                showSuccess("Absence updated.");
             }
             resetForm();
             refreshGrid();
         } catch (RuntimeException e) {
             LOG.error("Saving absence failed", e);
-            showError("No se guardó la ausencia. Conservamos el formulario; podés reintentar.");
+            showError("The absence was not saved. The form was preserved; you can retry.");
         }
     }
 
@@ -184,7 +190,7 @@ public class TeamAvailabilityView extends VerticalLayout {
         editingId = null;
         binder.setBean(new FormValues());
         typeField.setValue(AbsenceType.VACATION);
-        saveButton.setText("Agregar");
+        saveButton.setText("Add");
         cancelEditButton.setVisible(false);
     }
 
@@ -197,7 +203,7 @@ public class TeamAvailabilityView extends VerticalLayout {
         values.endDate = absence.endDate();
         values.note = absence.note();
         binder.setBean(values);
-        saveButton.setText("Guardar cambios");
+        saveButton.setText("Save changes");
         cancelEditButton.setVisible(true);
     }
 
@@ -206,22 +212,22 @@ public class TeamAvailabilityView extends VerticalLayout {
             repository.delete(absence.id());
         } catch (RuntimeException e) {
             LOG.error("Deleting absence failed for {}", absence.id(), e);
-            showError("No se eliminó la ausencia. Podés reintentar.");
+            showError("The absence was not deleted. You can retry.");
             return;
         }
         if (absence.id().equals(editingId)) resetForm();
-        showSuccess("Ausencia eliminada.");
+        showSuccess("Absence deleted.");
         refreshGrid();
     }
 
     // ── grid ─────────────────────────────────────────────────────────────────────
 
     private void configureGrid() {
-        grid.addColumn(a -> memberName(a.username())).setHeader("Persona").setAutoWidth(true);
-        grid.addColumn(a -> a.type().label()).setHeader("Tipo").setAutoWidth(true);
-        grid.addColumn(a -> a.startDate().format(DATE_FORMAT)).setHeader("Desde").setAutoWidth(true);
-        grid.addColumn(a -> a.endDate().format(DATE_FORMAT)).setHeader("Hasta").setAutoWidth(true);
-        grid.addColumn(TeamAbsence::note).setHeader("Nota").setAutoWidth(true);
+        grid.addColumn(a -> memberName(a.username())).setHeader("Person").setAutoWidth(true);
+        grid.addColumn(a -> a.type().label()).setHeader("Type").setAutoWidth(true);
+        grid.addColumn(a -> a.startDate().format(DATE_FORMAT)).setHeader("From").setAutoWidth(true);
+        grid.addColumn(a -> a.endDate().format(DATE_FORMAT)).setHeader("To").setAutoWidth(true);
+        grid.addColumn(TeamAbsence::note).setHeader("Note").setAutoWidth(true);
         grid.addColumn(new ComponentRenderer<>(this::rowActions)).setHeader("").setAutoWidth(true);
         grid.setAllRowsVisible(true);
         grid.addClassNames("data-grid", "absence-grid");
@@ -229,8 +235,8 @@ public class TeamAvailabilityView extends VerticalLayout {
     }
 
     private Component rowActions(TeamAbsence absence) {
-        Button edit = new Button("Editar", e -> editRow(absence));
-        Button delete = new Button("Eliminar", e -> deleteRow(absence));
+        Button edit = new Button("Edit", e -> editRow(absence));
+        Button delete = new Button("Delete", e -> deleteRow(absence));
         delete.addThemeVariants(ButtonVariant.LUMO_ERROR, ButtonVariant.LUMO_TERTIARY);
         edit.addThemeVariants(ButtonVariant.LUMO_TERTIARY);
         HorizontalLayout layout = new HorizontalLayout(edit, delete);
@@ -244,7 +250,7 @@ public class TeamAvailabilityView extends VerticalLayout {
             grid.setItems(repository.findAll());
         } catch (RuntimeException e) {
             LOG.error("Loading absences failed", e);
-            showError("No se pudo actualizar la lista de ausencias. Los cambios confirmados siguen guardados. Usá Actualizar ausencias.");
+            showError("The absence list could not be refreshed. Confirmed changes are still saved. Use Refresh absences.");
         }
     }
 

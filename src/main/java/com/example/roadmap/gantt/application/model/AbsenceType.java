@@ -7,11 +7,11 @@ package com.example.roadmap.gantt.application.model;
  */
 public enum AbsenceType {
 
-    VACATION("Vacaciones"),
-    BIRTHDAY("Cumpleaños"),
-    SICK_LEAVE("Licencia médica"),
-    HOLIDAY("Feriado"),
-    OTHER("Otro");
+    VACATION("Vacation"),
+    BIRTHDAY("Birthday"),
+    SICK_LEAVE("Sick leave"),
+    HOLIDAY("Holiday"),
+    OTHER("Other");
 
     private final String label;
 

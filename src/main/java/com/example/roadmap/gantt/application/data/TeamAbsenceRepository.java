@@ -2,13 +2,14 @@ package com.example.roadmap.gantt.application.data;
 
 import com.example.roadmap.gantt.application.model.AbsenceType;
 import com.example.roadmap.gantt.application.model.TeamAbsence;
-import java.time.LocalDate;
-import java.util.List;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.time.LocalDate;
+import java.util.List;
+
 /**
- * PostgreSQL-backed store for the AR1 team's absences. Database transactions make changes
+ * PostgreSQL-backed store for the roadmap team's absences. Database transactions make changes
  * immediately visible to every application instance and preserve them across restarts.
  */
 @Repository

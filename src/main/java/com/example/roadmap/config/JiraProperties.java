@@ -1,3 +1,4 @@
+
 package com.example.roadmap.config;
 
 import java.time.Duration;
@@ -13,14 +14,16 @@ public record JiraProperties(
         Duration readTimeout,
         String fieldEffortEstimate,
         String fieldEpicLink,
+        String fieldParentMilestone,
         String fieldTargetStart,
         String fieldFirstTimeInProgress) {
 
-    public static final String DEFAULT_PROJECT = "TTAR";
-    public static final String DEFAULT_FIELD_EFFORT_ESTIMATE = "customfield_14230";
-    public static final String DEFAULT_FIELD_EPIC_LINK = "customfield_10830";
-    public static final String DEFAULT_FIELD_TARGET_START = "customfield_12832";
-    public static final String DEFAULT_FIELD_FIRST_TIME_IN_PROGRESS = "customfield_13034";
+    public static final String DEFAULT_PROJECT = "DEMO";
+    public static final String DEFAULT_FIELD_EFFORT_ESTIMATE = "customfield_10001";
+    public static final String DEFAULT_FIELD_EPIC_LINK = "customfield_10002";
+    public static final String DEFAULT_FIELD_PARENT_MILESTONE = "customfield_10003";
+    public static final String DEFAULT_FIELD_TARGET_START = "customfield_10004";
+    public static final String DEFAULT_FIELD_FIRST_TIME_IN_PROGRESS = "customfield_10005";
 
     @ConstructorBinding
     public JiraProperties {
@@ -37,20 +40,22 @@ public record JiraProperties(
                 "roadmap.jira.field-effort-estimate");
         fieldEpicLink = customField(fieldEpicLink, DEFAULT_FIELD_EPIC_LINK,
                 "roadmap.jira.field-epic-link");
+        fieldParentMilestone = customField(fieldParentMilestone, DEFAULT_FIELD_PARENT_MILESTONE,
+                "roadmap.jira.field-parent-milestone");
         fieldTargetStart = customField(fieldTargetStart, DEFAULT_FIELD_TARGET_START,
                 "roadmap.jira.field-target-start");
         fieldFirstTimeInProgress = customField(fieldFirstTimeInProgress,
                 DEFAULT_FIELD_FIRST_TIME_IN_PROGRESS, "roadmap.jira.field-first-time-in-progress");
-        if (new java.util.HashSet<>(java.util.List.of(fieldEffortEstimate, fieldEpicLink,
-                fieldTargetStart, fieldFirstTimeInProgress)).size() != 4) {
+        if (new java.util.HashSet<>(java.util.List.of(fieldEffortEstimate, fieldEpicLink, fieldParentMilestone,
+                fieldTargetStart, fieldFirstTimeInProgress)).size() != 5) {
             throw new IllegalArgumentException("Jira custom field IDs must be different");
         }
     }
 
     /** Compatibility constructor for tests and local fixtures that use the default Jira schema. */
     public JiraProperties(String baseUrl, String token, String project,
-            Duration connectTimeout, Duration readTimeout) {
-        this(baseUrl, token, project, connectTimeout, readTimeout, null, null, null, null);
+                          Duration connectTimeout, Duration readTimeout) {
+        this(baseUrl, token, project, connectTimeout, readTimeout, null, null, null, null, null);
     }
 
     private static String customField(String value, String fallback, String property) {
