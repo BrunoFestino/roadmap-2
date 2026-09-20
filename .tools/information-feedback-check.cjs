@@ -3,14 +3,15 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const fs = require('node:fs');
 const baseline = process.argv.includes('--before');
-const base = process.env.DEMO_URL || 'http://127.0.0.1:18084';
+const base = process.env.TEST_FIXTURE_URL || 'http://127.0.0.1:18084';
 async function ready(page) {
   await page.locator('h1').waitFor();
   await page.waitForFunction(() => window.Vaadin?.Flow?.clients &&
     Object.values(window.Vaadin.Flow.clients).every(client => !client.isActive()));
 }
 async function main() {
-  if (!baseline && !base.endsWith(':18085')) throw Error('Run mutation checks only against the isolated demo on port 18085');
+  assert.ok(['http://127.0.0.1:18084', 'http://127.0.0.1:18085'].includes(base), 'Use the isolated local test fixture');
+  assert.ok((await (await fetch(base + '/test/state')).json()).plans.some(p => p.issue_key === 'TEST-SUB-A'));
   const browser = await chromium.launch({channel:'chrome',headless:true});
   const page = await browser.newPage({viewport:{width:1440,height:1000},locale:'en-US'});
   const errors = [];
@@ -29,22 +30,22 @@ async function main() {
     } else {
       assert.ok(options.some(v=>v.trim()==='Subtask'));
       await page.getByRole('option',{name:'Subtask',exact:true}).click();
-      await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('DEMO-2111');
+      await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('TEST-2111');
       await page.getByText('Validate Face ID and fingerprint',{exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.disabled===false);
       const effort = page.getByRole('spinbutton',{name:'Local effort (MD)',exact:true});
       assert.equal(await effort.isEnabled(),true);
       assert.equal(Number(await effort.inputValue()),2);
       await page.getByRole('button',{name:'Save plan',exact:true}).click();
-      await page.getByText('Plan saved for DEMO-2111.',{exact:true}).waitFor();
+      await page.getByText('Plan saved for TEST-2111.',{exact:true}).waitFor();
       assert.equal(await page.getByRole('combobox',{name:'Show',exact:true}).inputValue(),'Subtask');
-      assert.equal(await page.getByRole('textbox',{name:'Jira ID',exact:true}).inputValue(),'DEMO-2111');
-      await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('DEMO-2101');
+      assert.equal(await page.getByRole('textbox',{name:'Jira ID',exact:true}).inputValue(),'TEST-2111');
+      await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('TEST-2101');
       await page.getByRole('combobox',{name:'Show',exact:true}).click();
       await page.getByRole('option',{name:'Task',exact:true}).click();
       await page.getByText('Biometric authentication',{exact:true}).click();
       await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.disabled===true
-        && document.querySelector('.selection-instruction')?.textContent.includes('DEMO-2101'));
+        && document.querySelector('.selection-instruction')?.textContent.includes('TEST-2101'));
       assert.equal(await effort.isEnabled(),false);
     }
     await page.goto(base); await ready(page);
@@ -84,35 +85,50 @@ async function main() {
       const stateBefore = await (await fetch(base+'/test/state')).json();
       const editSubtask = async value => {
         await page.goto(base+'/gantt/planning'); await ready(page);
-        await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('DEMO-SUB-A');
+        await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('TEST-SUB-A');
         await page.getByText('Explicit local estimate: 3 MD',{exact:true}).click();
         await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.disabled===false);
         await page.getByRole('spinbutton',{name:'Local effort (MD)',exact:true}).fill(value);
         await page.getByRole('spinbutton',{name:'Local effort (MD)',exact:true}).press('Tab');
         await page.getByRole('button',{name:'Save plan',exact:true}).click();
-        await page.getByText('Plan saved for DEMO-SUB-A.',{exact:true}).waitFor();
+        await page.getByText('Plan saved for TEST-SUB-A.',{exact:true}).waitFor();
       };
-      const checkShares = async (a,b) => {
+      const checkEffort = async a => {
         await page.goto(base); await ready(page);
         const rows = await page.locator('.usage-task-name').allTextContents();
-        assert.ok(rows.some(row=>row.includes('DEMO-SUB-A')&&row.includes('('+a+' MD)')), 'A workload '+a);
-        for (const key of ['DEMO-SUB-B','DEMO-SUB-C']) {
-          assert.ok(rows.some(row=>row.includes(key)&&row.includes('('+b+' MD)')), key+' workload '+b);
+        assert.equal(rows.some(row=>row.includes('TEST-SUB-A')), a !== null, 'A has workload only with a local estimate');
+        if (a !== null) assert.ok(rows.some(row=>row.includes('TEST-SUB-A')&&row.includes('('+a+' MD)')), 'A workload '+a);
+        await page.getByRole('tab', {name: /^Missing estimates/}).click();
+        await ready(page);
+        for (const key of ['TEST-SUB-B','TEST-SUB-C']) {
+          assert.equal(rows.some(row=>row.includes(key)), false, key+' has no local estimate');
+          assert.ok((await page.locator('#roadmap-unplanned').innerText()).includes(key));
         }
-        assert.equal(rows.some(row=>row.includes('DEMO-PARENT')),false);
+        assert.equal(rows.some(row=>row.includes('TEST-PARENT')),false);
+        assert.equal((await page.locator('body').innerText()).includes('TEST-PARENT'), false);
+        assert.equal(await page.locator('[title*="Inherited parent"]').count(), 0);
+        const bars = await page.locator('[title^="Task Key: "]').evaluateAll(es => es.map(e => e.title));
+        assert.ok(bars.some(text => text.includes('TEST-GREEN\n') && text.includes('3.75 MD (30 h)')), 'Standalone task keeps its own estimate');
+        assert.equal(bars.some(text => text.includes('TEST-SUB-A\n')), a !== null);
+        if (a !== null) assert.ok(bars.some(text => text.includes('TEST-SUB-A\n') && text.includes('Original effort: ' + a + ' MD')));
+        if (a === null) assert.ok((await page.locator('#roadmap-unplanned').innerText()).includes('TEST-SUB-A'));
       };
       try {
-        await checkShares('3','3.5');
+        await checkEffort('3');
         await editSubtask('4');
-        await checkShares('4','3');
+        await checkEffort('4');
         await editSubtask('');
-        await checkShares('3.3','3.3');
+        await checkEffort(null);
       } finally {
         await editSubtask('3');
       }
-      await checkShares('3','3.5');
+      await checkEffort('3');
       assert.deepEqual(await (await fetch(base+'/test/state')).json(),stateBefore);
-      console.log('PASS: mixed parent budget, local edits, clearing estimate and restored demo state.');
+      await page.goto(base + '/gantt/planning'); await ready(page);
+      await page.getByRole('textbox', {name:'Jira ID',exact:true}).fill('TEST-PARENT');
+      await page.waitForFunction(() => !document.querySelector('.planning-grid')?.textContent.includes('TEST-SUB-A'));
+      assert.equal(await page.getByRole('link', {name:/^Open TEST-PARENT in Jira:/}).count(), 0);
+      console.log('PASS: parents excluded, only local effort counted, clearing estimate adds no workload, fixture restored.');
       await page.goto(base+'/information'); await ready(page);
       const text = await page.locator('main, .information-page').last().innerText();
       assert.ok(text.includes('Subtasks'));

@@ -23,6 +23,7 @@ public record JiraIssueDto(String key, Fields fields) {
     private User assignee;
     private Status status;
     private Parent parent;
+    private List<Parent> subtasks = List.of();
     private String created;
     private String duedate;
     private List<String> labels = List.of();
@@ -94,6 +95,12 @@ public record JiraIssueDto(String key, Fields fields) {
 
     public void setParent(Parent parent) {
       this.parent = parent;
+    }
+
+    public List<Parent> subtasks() { return subtasks; }
+
+    public void setSubtasks(List<Parent> subtasks) {
+      this.subtasks = subtasks == null ? List.of() : List.copyOf(subtasks);
     }
 
     public String created() {
@@ -168,7 +175,8 @@ public record JiraIssueDto(String key, Fields fields) {
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)
-  public record IssueType(String name) {
+  public record IssueType(String name, boolean subtask) {
+    public IssueType(String name) { this(name, "Sub-task".equalsIgnoreCase(name)); }
   }
 
   @JsonIgnoreProperties(ignoreUnknown = true)

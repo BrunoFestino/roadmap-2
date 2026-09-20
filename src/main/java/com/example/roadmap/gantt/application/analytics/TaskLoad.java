@@ -11,7 +11,7 @@ import com.example.roadmap.gantt.application.model.WorkContour;
  * Without it, a red cell tells a manager there is a problem but not which commitment caused
  * it, so this record always travels with its {@link WeekLoad}.
  *
- * @param taskKey    Jira issue key, e.g. {@code "DEMO-10608"}
+ * @param taskKey    Jira issue key, e.g. {@code "TEST-10608"}
  * @param summary    short human-readable title
  * @param hours      effort hours this task demands inside the week
  * @param dailyHours average hours per day the task demands on the days it occupies inside

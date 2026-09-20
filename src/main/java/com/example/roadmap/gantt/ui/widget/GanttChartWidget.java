@@ -280,10 +280,9 @@ public class GanttChartWidget extends Div {
         String metadata = g.group().tasks().isEmpty()
                 ? "no workload"
                 : context
-                ? g.group().tasks().size() + " Epic" + (g.group().tasks().size() == 1 ? "" : "s")
-                    + " · hasta " + DAY_MONTH.format(latestEnd)
-                : formatMd(totalMd) + (g.group().tasks().stream().anyMatch(GanttTask::inheritedEffort)
-                        ? " MD (includes parent shares) · through " : " original MD · through ") + DAY_MONTH.format(latestEnd);
+                ? g.group().tasks().size() + " item" + (g.group().tasks().size() == 1 ? "" : "s")
+                    + " · through " + DAY_MONTH.format(latestEnd)
+                : formatMd(totalMd) + " original MD · through " + DAY_MONTH.format(latestEnd);
         Span text = new Span(g.group().label() + " · " + metadata);
         text.getStyle().set("position", "absolute").set("left", "0px")
                 .set("top", (g.top() + g.height() / 2.0 - 15) + "px")
@@ -325,7 +324,7 @@ public class GanttChartWidget extends Div {
                 + "\nEnd Date: " + DAY_MONTH.format(placed.task().end())
                 + (placed.task().isEpic() ? "\nPlanned initiative duration"
                 : (placed.task().hasCalendarWindow() ? "" : " (no planned window: productive-capacity fallback)")
-                + (placed.task().inheritedEffort() ? "\nInherited parent budget: " : "\nOriginal effort: ")
+                + "\nOriginal effort: "
                 + formatMd(placed.task().md()) + " MD ("
                 + formatHours(placed.task().workHours()) + " h)"
                 + "\nWorkload and availability: see the weekly breakdown"

@@ -59,29 +59,28 @@ public class InformationView extends VerticalLayout {
 
     private Component estimates() {
         return section("estimates", "01", "Where effort comes from",
-                "Tasks use Jira Original Estimate. Subtasks are estimated locally; an unestimated subtask can inherit the available parent budget.",
+                "Standalone tasks use Jira Original Estimate. Subtasks use only their own local effort.",
                 columns("information-quick-grid",
                         example("Tasks", "Jira Original Estimate", "Example: enter 16 h in Jira Time Tracking. The task shows 2 MD. Custom Jira MD and local effort do not supply task estimates."),
-                        example("Subtasks", "Local effort", "Example: select Subtask in Plan tasks and enter 1.5 MD for 12 h. A different Original Estimate in Jira is ignored. Leave local effort empty to share any available parent budget.")),
+                        example("Subtasks", "Local effort", "Example: select Subtask in Plan tasks and enter 1.5 MD for 12 h. A different Original Estimate in Jira is ignored. Without positive local effort, the subtask appears in Needs attention and adds no workload.")),
                 example("Recorded work", "24 h estimated, 6 h logged, 18 h left", "Jira worklogs reduce remaining work, not the original estimate. If 26 h have already been logged against a 24 h estimate, remaining work is zero. Actual worklogs are never overwritten."),
-                note("Missing an estimate?", "A task without Jira Original Estimate goes to Needs attention. A subtask without local effort can use a share of an eligible parent's remaining budget; without a positive share, it also needs attention."));
+                note("Missing an estimate?", "A task without Jira Original Estimate goes to Needs attention. A subtask without positive local effort also goes to Needs attention."));
     }
 
     private Component subtasks() {
-        return section("subtasks", "02", "Estimated subtasks first, shared budget next",
-                "A local subtask estimate is respected. Only subtasks without a local estimate share what remains of the parent's budget.",
+        return section("subtasks", "02", "Only subtasks contribute effort",
+                "A task with subtasks is excluded from the roadmap, workload and task planning. Each subtask uses its own local MD.",
                 columns("information-concepts",
-                        example("Parent budget", "10 MD", "No completed subtasks or logged time in this example."),
-                        example("Subtask A", "3 MD", "Estimated locally. It keeps its own 3 MD."),
-                        example("Subtasks B and C", "3.5 MD each", "Neither has a local estimate. They share the remaining 7 MD.")),
-                note("Total workload: 10 MD.", "The parent adds no extra workload in this example. Its original 10 MD estimate is still visible in the Gantt. An inherited share is derived, not saved as a local estimate."),
+                        example("Parent", "10 MD excluded", "The parent estimate is neither counted nor shared."),
+                        example("Subtask A", "3 MD", "Estimated locally. It contributes its own 24 hours before worklogs."),
+                        example("Subtasks B and C", "Needs attention", "No positive local effort. They contribute no workload until estimated.")),
+                note("Total estimated workload: 3 MD.", "Only A is estimated. B and C still need estimates, so this total does not describe all remaining work."),
                 disclosure("More parent and subtask examples",
-                        example("All subtasks are estimated", "Parent 10 MD, subtasks 3 MD and 4 MD", "The subtasks keep 3 MD and 4 MD. The parent keeps the remaining 3 MD of workload."),
-                        example("Some work is already complete", "Parent 10 MD, completed consumption 2 MD", "A locally estimated subtask keeps 3 MD. Two unestimated subtasks receive 2.5 MD each."),
-                        example("Local estimates exceed the budget", "Parent 10 MD, subtasks 8 MD and 5 MD", "Both estimates are respected: total open workload is 13 MD. The parent contributes zero and a budget warning is shown. Unestimated subtasks have no budget left to inherit."),
-                        text("Completed subtasks consume positive logged work first, otherwise their local effort. Jira Original Estimate is ignored. With neither logged time nor local effort, no consumption is deducted."),
-                        text("Budget reservations include loaded open subtasks even when dates are missing. An undated subtask still needs planning before its reserved effort appears in dated workload."),
-                        text("Epics and User Stories are context only and do not provide this executable-task budget. Without an eligible parent, a subtask needs a local estimate. Workload deducts each issue's own worklogs from its effective effort.")));
+                        example("All subtasks are estimated", "Subtasks 3 MD and 4 MD", "Total workload is 7 MD. The parent contributes nothing, regardless of its estimate."),
+                        example("Subtasks exceed the parent estimate", "Subtasks 8 MD and 5 MD", "Total workload is 13 MD. Each local estimate stands on its own; there is no parent budget warning."),
+                        example("Standalone task", "Jira Original Estimate: 16 h", "Without subtasks, the task contributes its own 2 MD."),
+                        text("A parent stays excluded when subtasks are closed, undated, unestimated or assigned outside the team. Closed subtasks add no future workload."),
+                        text("Jira worklogs reduce each visible issue's remaining work. Parent estimates and parent worklogs never change a subtask estimate.")));
     }
 
     private Component workload() {
@@ -109,10 +108,10 @@ public class InformationView extends VerticalLayout {
         return section("dates", "04", "Dates, missing information and task states",
                 "Effort and duration are independent. A longer window spreads the same work across more available days.",
                 rows("Start dates", "Local Start takes precedence over Jira Target Start. First Time In Progress is used only for a task currently In Progress. Sprint and creation dates do not supply a start.",
-                        "Missing start", "The task appears in Needs attention and is excluded from the Gantt and dated workload. A subtask may still reserve part of its parent's budget.",
+                        "Missing start", "The task appears in Needs attention and is excluded from the Gantt and dated workload.",
                         "Start but no local End", "Example: 2 MD represents 16 h and needs a provisional three-day window at 6 productive hours per day. Weekends and absences are skipped. The task is included, but still listed under missing dates until a window is agreed.",
                         "Committed dates", "Local Start and End define the window, including both endpoints. Absences reduce usable days without moving End. Ordinary task due dates do not set this window; due dates position milestones and can supply an epic's end.",
-                        "Final states", "Done, Cancelled, Resolved, Closed and Obsolete no longer add future task load. Final-state subtasks may still consume an active parent's budget. Blocked is not a final state."),
+                        "Final states", "Done, Cancelled, Resolved, Closed and Obsolete no longer add future task load. Blocked is not a final state."),
                 note("Keep dates realistic.", "A task whose entire window is past, or has no available days, has nowhere to distribute remaining work. The app does not automatically move it into a new window. Review dates before interpreting free capacity as a new commitment."));
     }
 
@@ -121,7 +120,7 @@ public class InformationView extends VerticalLayout {
                 "Local planning saves dates, subtask effort and stack. It does not update Jira assignees, statuses, estimates or worklogs.",
                 rows("Choose an item", "Use Show to select Epic, Task, Subtask or All. Filter by Jira ID and person, then select a row.",
                         "Set the window", "Start and End are required. End cannot precede Start. Tasks and subtasks need at least one available business day in the window.",
-                        "Estimate a subtask", "Example: select a Subtask and enter 2.5 MD in Local effort for 20 h. This field is enabled only for subtasks. Leave it empty to share available parent budget. For a normal task, update Original Estimate in Jira instead.",
+                        "Estimate a subtask", "Example: select a Subtask and enter 2.5 MD in Local effort for 20 h. This field is enabled only for subtasks. Leave it empty to flag the subtask as missing an estimate. For a normal task, update Original Estimate in Jira instead.",
                         "Save and keep filters", "Saving reloads the list while preserving search and item type. The selected person is retained if still present in the refreshed list. Filters are local to this view, not saved across browser reloads or navigation away.",
                         "Choose a stack", "Local stack takes priority over recognized Jira labels, then the person's role. Conflicting recognized labels are shown as ambiguous. Changing stack does not reassign a task or create capacity.",
                         "Record absences", "Use Team availability to add, edit or remove absences. Return to Roadmap or use Refresh roadmap to rebuild the view with current planning and availability."));
@@ -129,7 +128,7 @@ public class InformationView extends VerticalLayout {
 
     private Component views() {
         return section("views", "06", "How to read each view",
-                "The Gantt shows original estimates or inherited subtask shares and date windows. Workload discounts the parent budget to avoid counting it again.",
+                "The Gantt and workload show the same standalone tasks and locally estimated subtasks. Tasks with subtasks are excluded.",
                 rows("Team workload", "Eight weekly buckets by roster role and person. Expand a person to see their tasks. Parent/subtask workload follows the examples above.",
                         "Workload histogram", "The same weekly planned hours as Team workload. A dotted line marks normal capacity. Excess is yellow up to 8 h per available day, then red. Each person has an independent chart scale; compare numeric values, not bar heights across people.",
                         "By role / By person", "Gantt views show date windows. By role groups tasks by effective stack; Team workload groups people by roster role. Epics and User Stories are context only. A long bar does not mean full-time dedication.",

@@ -19,7 +19,7 @@ class WorkloadRegressionTest {
     static final GanttTeamRoster ROSTER = GanttTeamRoster.defaults();
     static final TaskStackResolver STACK_RESOLVER = TaskStackResolver.defaults();
     static final TeamMember PERSON = ROSTER.members().getFirst();
-    static final JiraProperties PROPS = new JiraProperties("http://localhost", "test", "DEMO", null, null);
+    static final JiraProperties PROPS = new JiraProperties("http://localhost", "test", "TEST", null, null);
 
     static GanttTask task(String key, String start, String end, int md, long logged) {
         LocalDate date = LocalDate.parse(start);
@@ -149,7 +149,7 @@ class WorkloadRegressionTest {
         assertThat(result.warnings()).isEmpty();
     }
 
-    @Test void explicitSubtaskEstimatesArePreservedAndTheParentKeepsUnassignedBudget() {
+    @Test void explicitSubtasksExcludeTheEntireParentEffort() {
         var parent = task("PARENT", "2026-09-14", "2026-09-18", 10, 0);
         var first = subtask("SUB-1", "PARENT", "2026-09-14", "2026-09-18", 3, "Open", 0);
         var second = subtask("SUB-2", "PARENT", "2026-09-14", "2026-09-18", 4, "Open", 0);
@@ -158,7 +158,7 @@ class WorkloadRegressionTest {
                 .flatMap(week -> week.tasks().stream())
                 .collect(java.util.stream.Collectors.toMap(TaskLoad::taskKey, TaskLoad::md, (left, right) -> left));
 
-        assertThat(taskLoads).containsEntry("PARENT", 3.0);
+        assertThat(taskLoads).doesNotContainKey("PARENT");
         assertThat(taskLoads).containsEntry("SUB-1", 3.0).containsEntry("SUB-2", 4.0);
     }
 
@@ -204,7 +204,7 @@ class WorkloadRegressionTest {
         var first = subtask("SUB-1", "PARENT", "2026-09-14", "2026-09-18", 3, "Open", 0);
         var second = subtask("SUB-2", "PARENT", "2026-09-14", "2026-09-18", 4, "Open", 0);
         var snapshot = new RoadmapSnapshot(List.of(parent, first, second), List.of(), List.of(), List.of(),
-                List.of(new CompletedSubtaskEffort("SUB-DONE", "PARENT", 5)));
+                java.util.Set.of("PARENT"));
 
         var result = new BuildWorkloadReportUseCase(null, null, PROPS, ROSTER).build(snapshot, FRIDAY);
         var taskLoads = person(result).weeks().stream().flatMap(week -> week.tasks().stream())
@@ -212,10 +212,9 @@ class WorkloadRegressionTest {
 
         assertThat(taskLoads).doesNotContainKey("PARENT");
         assertThat(taskLoads).containsEntry("SUB-1", 3.0).containsEntry("SUB-2", 4.0);
-        assertThat(result.subtaskOverrunWarnings()).hasSize(1);
     }
 
-    @Test void providerKeepsFinalizedSubtaskConsumptionWithoutPuttingItBackOnTheGantt() {
+    @Test void providerExcludesParentsEvenWhenAllSubtasksAreFinalized() {
         JiraClient jira = mock(JiraClient.class);
         TeamAbsenceRepository absences = mock(TeamAbsenceRepository.class);
         TargetStartRepository schedules = mock(TargetStartRepository.class);
@@ -233,9 +232,8 @@ class WorkloadRegressionTest {
 
         var snapshot = provider.snapshot(List.of());
 
-        assertThat(snapshot.tasks()).extracting(GanttTask::key).containsExactly("PARENT");
-        assertThat(snapshot.completedSubtasks()).containsExactly(
-                new CompletedSubtaskEffort("SUB-DONE", "PARENT", 5));
+        assertThat(snapshot.tasks()).isEmpty();
+        assertThat(snapshot.parentTaskKeys()).containsExactly("PARENT");
     }
 
     static JiraIssueDto issue(String key, String start, String effort) {

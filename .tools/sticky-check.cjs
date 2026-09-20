@@ -7,7 +7,7 @@ async function main() {
   const baseline = process.argv.includes('--before');
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
   const page = await browser.newPage({ viewport: { width: 2560, height: 1000 } });
-  const base = process.env.DEMO_URL || 'http://127.0.0.1:18084';
+  const base = process.env.TEST_FIXTURE_URL || 'http://127.0.0.1:18084';
   const evidence = path.join(__dirname, 'evidence', 'sticky-' + (baseline ? 'before' : 'after'));
   fs.mkdirSync(evidence, { recursive: true });
   const errors = [];

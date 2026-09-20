@@ -16,7 +16,7 @@ import java.time.LocalDate;
  * atención" tray with its owner, the {@link #reason()} it needs attention, and a link to
  * Jira, so the team can agree on real dates or load a real estimate.
  *
- * @param taskKey      Jira issue key, e.g. {@code "DEMO-10608"}
+ * @param taskKey      Jira issue key, e.g. {@code "TEST-10608"}
  * @param summary      short human-readable title
  * @param issueType    Jira issue type
  * @param assigneeName display name of the person who owns the task

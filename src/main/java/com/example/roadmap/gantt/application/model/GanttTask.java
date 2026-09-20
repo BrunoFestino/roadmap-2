@@ -32,7 +32,7 @@ import java.util.function.Predicate;
  *       items without either source are intentionally excluded instead of being inferred.
  * </ul>
  *
- * @param key               Jira issue key, e.g. {@code "DEMO-10608"}
+ * @param key               Jira issue key, e.g. {@code "TEST-10608"}
  * @param summary           short human-readable title
  * @param issueType         Jira issue type, e.g. {@code "Task"} or {@code "Epic"}
  * @param assignee          the team member doing the work; {@code null} only for an Epic
@@ -78,8 +78,7 @@ public record GanttTask(
         long loggedSeconds,
         TaskStack stack,
         TaskStackSource stackSource,
-        List<String> prjTaskLabels,
-        boolean inheritedEffort) {
+        List<String> prjTaskLabels) {
 
     public GanttTask {
         boolean epic = "Epic".equalsIgnoreCase(issueType);
@@ -148,7 +147,7 @@ public record GanttTask(
                 : WorkingDays.endFrom(displayStart, fallbackWorkingDays(md), extraBlockedDays);
         return new GanttTask(key, summary, issueType, assignee, actualStartDate, plannedStartDate,
                 startDateSource, md, status, endDate, committed, epicKey, null, null, loggedSeconds,
-                stack, stackSource, prjTaskLabels, false);
+                stack, stackSource, prjTaskLabels);
     }
 
     /** Builds a task with an explicitly resolved effective stack, PRJ task labels and its Jira parent. */
@@ -163,7 +162,7 @@ public record GanttTask(
                 stack, stackSource, prjTaskLabels);
     }
 
-    /** Builds a task carrying its Jira {@code parentKey}, used to discount sub-task effort from a parent's load. */
+    /** Builds a task carrying its Jira {@code parentKey}, used to identify its task hierarchy. */
     public static GanttTask create(String key, String summary, String issueType, TeamMember assignee,
                                    LocalDate actualStartDate, LocalDate plannedStartDate, StartDateSource startDateSource,
                                    double md, String status, LocalDate committedEndDate,
@@ -177,7 +176,7 @@ public record GanttTask(
                 : WorkingDays.endFrom(displayStart, fallbackWorkingDays(md), extraBlockedDays);
         return new GanttTask(key, summary, issueType, assignee, actualStartDate, plannedStartDate,
                 startDateSource, md, status, endDate, committed, epicKey, milestoneKey, parentKey, loggedSeconds,
-                stack, stackSource, prjTaskLabels, false);
+                stack, stackSource, prjTaskLabels);
     }
 
     public static GanttTask createEpic(String key, String summary, LocalDate startDate,
@@ -187,29 +186,7 @@ public record GanttTask(
         }
         return new GanttTask(key, summary, "Epic", null, startDate, startDate, source,
                 0, status, endDate, true, key, null, null, 0L,
-                TaskStack.UNCLASSIFIED, TaskStackSource.NONE, List.of(), false);
-    }
-
-    /**
-     * Copy of this task with its effort estimate reduced to {@code effectiveMd}, keeping the
-     * exact same committed window untouched - used solely to discount a Jira Sub-task's
-     * effort from its parent's load in the workload report. The Gantt itself never sees this
-     * copy: it always reads the task built straight from Jira, so its dates never move.
-     *
-     * @throws IllegalArgumentException if {@code effectiveMd} would leave a non-Epic task
-     *                                  at zero; callers must drop the task instead of calling
-     *                                  this with a fully-absorbed estimate
-     */
-    public GanttTask withEffectiveMd(double effectiveMd) {
-        return new GanttTask(key, summary, issueType, assignee, actualStartDate, plannedStartDate,
-                startDateSource, effectiveMd, status, plannedEndDate, hasCalendarWindow, epicKey, milestoneKey,
-                parentKey, loggedSeconds, stack, stackSource, prjTaskLabels, inheritedEffort);
-    }
-
-    public GanttTask withInheritedEffort() {
-        return new GanttTask(key, summary, issueType, assignee, actualStartDate, plannedStartDate,
-                startDateSource, md, status, plannedEndDate, hasCalendarWindow, epicKey, milestoneKey,
-                parentKey, loggedSeconds, stack, stackSource, prjTaskLabels, true);
+                TaskStack.UNCLASSIFIED, TaskStackSource.NONE, List.of());
     }
 
     private static int fallbackWorkingDays(double md) {
