@@ -4,13 +4,13 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 // Fault injection is allowed only against the local test fixture, never Jira or production.
-const base = process.env.DEMO_URL || 'http://127.0.0.1:18083';
+const base = process.env.TEST_FIXTURE_URL || 'http://127.0.0.1:18083';
 const out = process.env.EVIDENCE_DIR || path.join(__dirname, 'evidence', 'e2e');
 async function run() {
   assert.ok(/^http:\/\/127\.0\.0\.1:\d+$/.test(base), 'Use an isolated loopback fixture');
   const initial = await (await fetch(base + '/test/state')).json();
-  const original = initial.plans.find(p => p.issue_key === 'DEMO-TEST');
-  assert.ok(original, 'Expected synthetic DEMO-TEST fixture');
+  const original = initial.plans.find(p => p.issue_key === 'TEST-TEST');
+  assert.ok(original, 'Expected synthetic TEST-TEST fixture');
   assert.ok(initial.absences.every(a => a.start_date > '2026-09-15'), 'Use a fresh fixture with no earlier absences');
   fs.mkdirSync(out, { recursive: true });
   const browser = await chromium.launch({ channel: 'chrome', headless: true });
@@ -23,7 +23,7 @@ async function run() {
   const idle = async () => page.waitForFunction(() => window.Vaadin?.Flow?.clients
     && Object.values(window.Vaadin.Flow.clients).every(c => !c.isActive()));
   const visible = text => page.getByText(text, { exact: false }).first().waitFor();
-  const openPlan = async (key = 'DEMO-TEST') => {
+  const openPlan = async (key = 'TEST-TEST') => {
     await page.goto(base + '/gantt/planning');
     await page.locator('h1').waitFor();
     await idle();
@@ -85,32 +85,32 @@ async function run() {
     await date(0, '09/11/2026');
     await date(1, '09/14/2026');
     await save();
-    await visible('Plan saved for DEMO-TEST.');
-    assert.equal(await page.getByRole('textbox', { name: 'Jira ID', exact: true }).inputValue(), 'DEMO-TEST');
+    await visible('Plan saved for TEST-TEST.');
+    assert.equal(await page.getByRole('textbox', { name: 'Jira ID', exact: true }).inputValue(), 'TEST-TEST');
     await openPlan();
     assert.deepEqual(await dates(), ['2026-09-11', '2026-09-14']);
     assert.equal(await stack().inputValue(), 'Front');
     assert.deepEqual(await page.locator('vaadin-date-picker input').evaluateAll(es => es.map(e => e.value)), ['09/11/2026', '09/14/2026']);
     await fault('schedule-save');
     await save();
-    await visible('The dates for DEMO-TEST were not saved.');
+    await visible('The dates for TEST-TEST were not saved.');
     assert.deepEqual(await dates(), ['2026-09-11', '2026-09-14']);
     await date(0, '09/12/2026');
     await date(1, '09/13/2026');
     await save();
     await visible('This window has no available days');
-    assert.equal((await state()).plans.find(p => p.issue_key === 'DEMO-TEST').start_date, '2026-09-11');
+    assert.equal((await state()).plans.find(p => p.issue_key === 'TEST-TEST').start_date, '2026-09-11');
     await date(0, '10/09/2026');
     await date(1, '10/12/2026');
     await save();
-    await visible('Plan saved for DEMO-TEST.');
+    await visible('Plan saved for TEST-TEST.');
     await openPlan();
     assert.deepEqual(await dates(), ['2026-10-09', '2026-10-12']);
     await fault('reload-after-save');
     await date(1, '10/13/2026');
     await save();
     await visible('was saved, but refresh failed');
-    assert.equal((await state()).plans.find(p => p.issue_key === 'DEMO-TEST').end_date, '2026-10-13');
+    assert.equal((await state()).plans.find(p => p.issue_key === 'TEST-TEST').end_date, '2026-10-13');
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await visible('Select an Epic, task or subtask from the table.');
     await openPlan();
@@ -118,9 +118,9 @@ async function run() {
     console.log('PASS: dates, persistence, weekend validation, save and refresh error recovery.');
 
     for (const [key, expected] of [
-      ['DEMO-2104', 'Effective stack: Front · source: Local planning'],
-      ['DEMO-2105', 'Effective stack: Mobile · source: Label Jira'],
-      ['DEMO-2107', 'Effective stack: Ambiguous stack · source: Label Jira']
+      ['TEST-2104', 'Effective stack: Front · source: Local planning'],
+      ['TEST-2105', 'Effective stack: Mobile · source: Label Jira'],
+      ['TEST-2107', 'Effective stack: Ambiguous stack · source: Label Jira']
     ]) {
       await openPlan(key);
       await visible(expected);
@@ -181,7 +181,7 @@ async function run() {
       const labels = { FRONTEND: 'Front', BACKEND: 'BE', MOBILE: 'Mobile', DEVOPS: 'DevOps' };
       await selectStack(labels[original.stack_local] || null);
       await save();
-      await visible('Plan saved for DEMO-TEST.');
+      await visible('Plan saved for TEST-TEST.');
       assert.deepEqual(await state(), initial, 'All fixture data must be restored');
       console.log('PASS: original fixture state restored.');
     } finally { await browser.close(); }

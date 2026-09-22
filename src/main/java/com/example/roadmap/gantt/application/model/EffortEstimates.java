@@ -9,7 +9,7 @@ public final class EffortEstimates {
     private EffortEstimates() { }
 
     public static boolean isSubtask(JiraIssueDto.Fields fields) {
-        return fields.issuetype() != null && "Sub-task".equalsIgnoreCase(fields.issuetype().name());
+        return fields.issuetype() != null && (fields.issuetype().subtask() || "Sub-task".equalsIgnoreCase(fields.issuetype().name()));
     }
 
     public static Double jiraMd(JiraIssueDto.Fields fields) {
@@ -25,12 +25,4 @@ public final class EffortEstimates {
         return localMd != null && Double.isFinite(localMd) && localMd > 0 ? localMd : null;
     }
 
-    public static double completedSubtaskMd(JiraIssueDto.Fields fields, Double localMd) {
-        var tracking = fields.timetracking();
-        if (tracking != null && tracking.timeSpentSeconds() != null && tracking.timeSpentSeconds() > 0) {
-            return tracking.timeSpentSeconds() / SECONDS_PER_MD;
-        }
-        Double estimate = resolve(fields, localMd);
-        return estimate == null ? 0 : estimate;
-    }
 }

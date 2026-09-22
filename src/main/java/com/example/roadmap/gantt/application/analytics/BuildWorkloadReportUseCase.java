@@ -1,7 +1,6 @@
 package com.example.roadmap.gantt.application.analytics;
 
 import com.example.roadmap.gantt.application.data.GanttDataProvider;
-import com.example.roadmap.gantt.application.data.CompletedSubtaskEffort;
 import com.example.roadmap.gantt.application.data.RoadmapSnapshot;
 import com.example.roadmap.gantt.application.data.TeamAbsenceRepository;
 import com.example.roadmap.gantt.application.model.GanttTask;
@@ -10,7 +9,6 @@ import com.example.roadmap.gantt.application.model.LevelledContour;
 import com.example.roadmap.gantt.application.model.Role;
 import com.example.roadmap.gantt.application.model.TeamAbsence;
 import com.example.roadmap.gantt.application.model.TeamMember;
-import com.example.roadmap.gantt.application.model.SubtaskBudget;
 import com.example.roadmap.gantt.application.model.WorkContour;
 import com.example.roadmap.gantt.application.model.WorkingDays;
 import com.example.roadmap.config.JiraProperties;
@@ -117,12 +115,8 @@ public class BuildWorkloadReportUseCase {
         Map<String, List<TeamAbsence>> calendars = snapshot.absencesByPerson();
         List<GanttTask> executableTasks = allTasks.stream().filter(task -> !task.isContextWork()).toList();
 
-        List<PlanningWarning> subtaskOverrunWarnings = new ArrayList<>();
-        List<GanttTask> loadTasks = applySubtaskEffortDiscount(
-                executableTasks, snapshot.completedSubtasks(), subtaskOverrunWarnings, snapshot.subtaskBudget());
-
         Map<String, List<GanttTask>> tasksByUsername = new LinkedHashMap<>();
-        for (GanttTask task : loadTasks) {
+        for (GanttTask task : executableTasks) {
             tasksByUsername.computeIfAbsent(task.assignee().username(), key -> new ArrayList<>()).add(task);
         }
 
@@ -155,38 +149,7 @@ public class BuildWorkloadReportUseCase {
             if (reason != null) warnings.add(new PlanningWarning(task.key(), task.summary(), task.assignee().name(), task.remainingWorkHours(), reason));
         }
         return new WorkloadReport(asOf, horizonStart, horizonEnd, List.copyOf(weekStarts), List.copyOf(roles),
-                List.copyOf(unplanned), List.copyOf(warnings), List.copyOf(subtaskOverrunWarnings));
-    }
-
-    /** Uses the same budget allocation as the provider, including reservations for undated subtasks. */
-    private List<GanttTask> applySubtaskEffortDiscount(List<GanttTask> executableTasks,
-                                                        List<CompletedSubtaskEffort> completedSubtasks,
-                                                        List<PlanningWarning> overruns,
-                                                        SubtaskBudget.Allocation budget) {
-        if (budget == null) {
-            Map<String, Double> consumed = new LinkedHashMap<>();
-            completedSubtasks.forEach(task -> consumed.merge(task.parentKey(), task.consumedMd(), Double::sum));
-            budget = SubtaskBudget.allocate(executableTasks.stream()
-                    .map(task -> new SubtaskBudget.Entry(task.key(), task.parentKey(), task.issueType(),
-                            task.inheritedEffort() ? null : task.md())).toList(), consumed);
-        }
-        List<GanttTask> adjusted = new ArrayList<>();
-        for (GanttTask task : executableTasks) {
-            double overrun = budget.overrunsMd().getOrDefault(task.key(), 0.0);
-            if (overrun > 0.000001) {
-                overruns.add(new PlanningWarning(task.key(), task.summary(), task.assignee().name(),
-                        task.remainingWorkHours(), "Subtasks exceed the parent estimate: "
-                        + formatMd(task.md() + overrun) + " MD consumed/estimated vs "
-                        + formatMd(task.md()) + " parent MD (+" + formatMd(overrun) + " MD)"));
-            }
-            double effectiveMd = budget.effectiveMd().getOrDefault(task.key(), task.md());
-            if (effectiveMd > 0.000001) adjusted.add(task.withEffectiveMd(effectiveMd));
-        }
-        return adjusted;
-    }
-    /** One decimal place is enough precision for an MD figure shown to a human. */
-    private String formatMd(double md) {
-        return String.format(java.util.Locale.ROOT, "%.1f", md);
+                List.copyOf(unplanned), List.copyOf(warnings));
     }
 
     /** One bucket per week, aligned to Monday so weeks read the way the team talks about them. */

@@ -18,7 +18,6 @@ public record JiraProperties(
         String fieldTargetStart,
         String fieldFirstTimeInProgress) {
 
-    public static final String DEFAULT_PROJECT = "DEMO";
     public static final String DEFAULT_FIELD_EFFORT_ESTIMATE = "customfield_10001";
     public static final String DEFAULT_FIELD_EPIC_LINK = "customfield_10002";
     public static final String DEFAULT_FIELD_PARENT_MILESTONE = "customfield_10003";
@@ -33,7 +32,10 @@ public record JiraProperties(
         if (token == null || token.isBlank()) {
             throw new IllegalArgumentException("roadmap.jira.token must be configured");
         }
-        project = defaultIfBlank(project, DEFAULT_PROJECT);
+        if (project == null || project.isBlank()) {
+            throw new IllegalArgumentException("roadmap.jira.project must be configured");
+        }
+        project = project.trim();
         connectTimeout = connectTimeout == null ? Duration.ofSeconds(10) : connectTimeout;
         readTimeout = readTimeout == null ? Duration.ofSeconds(30) : readTimeout;
         fieldEffortEstimate = customField(fieldEffortEstimate, DEFAULT_FIELD_EFFORT_ESTIMATE,

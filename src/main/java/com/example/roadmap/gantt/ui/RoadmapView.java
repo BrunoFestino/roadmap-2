@@ -254,7 +254,10 @@ public class RoadmapView extends VerticalLayout {
                     threshold: [0, 0.01]
                 });
                 sections.forEach(section => observer.observe(section));
-                window.addEventListener('scroll', update, {passive: true, signal: controller.signal});
+                // AppLayout scrolls its content, so observe nested scroll events too.
+                document.addEventListener('scroll', update, {capture: true, passive: true, signal: controller.signal});
+                nav.closest('vaadin-app-layout')?.shadowRoot?.addEventListener('scroll', update,
+                    {capture: true, passive: true, signal: controller.signal});
                 window.addEventListener('resize', update, {passive: true, signal: controller.signal});
                 nav.__roadmapNavigationCleanup = () => {
                     observer.disconnect();
@@ -307,7 +310,7 @@ public class RoadmapView extends VerticalLayout {
             results.add(resourceUsageSection(workload));
             results.add(loadHistogramSection(workload));
 
-            results.add(initiativeLegend(roleChart));
+            results.add(initiativeLegend(roleChart, snapshot.issueSummaries()));
             results.add(ganttSection(SECTION_BY_ROLE, "Roadmap - By role", roleChart, "gantt-role-section"));
             results.add(ganttSection(SECTION_BY_PERSON, "Roadmap - By person", personChart, "gantt-person-section"));
 
@@ -326,8 +329,8 @@ public class RoadmapView extends VerticalLayout {
      * are merely colourful: a manager can see that two tasks belong together but not to
      * which initiative, which is the whole point of colouring them by epic.
      */
-    private Component initiativeLegend(GanttChart chart) {
-        Map<String, String> names = new LinkedHashMap<>();
+    private Component initiativeLegend(GanttChart chart, Map<String, String> issueSummaries) {
+        Map<String, String> names = new LinkedHashMap<>(issueSummaries);
         Map<String, Integer> counts = new LinkedHashMap<>();
         for (GanttGroup group : chart.groups()) {
             for (GanttTask task : group.tasks()) {
@@ -366,11 +369,21 @@ public class RoadmapView extends VerticalLayout {
                     String label = entry.getKey();
                     String name = names.get(label);
                     String text = label + (name == null ? "" : " · " + name) + " (" + entry.getValue() + ")";
-                    legend.add(legendSwatch(
-                            EpicPalette.UNASSIGNED_LABEL.equals(label)
-                                    ? EpicPalette.UNASSIGNED
-                                    : EpicPalette.colorFor(label),
-                            text));
+                    boolean unassigned = EpicPalette.UNASSIGNED_LABEL.equals(label);
+                    Div item = legendSwatch(unassigned ? EpicPalette.UNASSIGNED : EpicPalette.colorFor(label), text);
+                    item.getStyle().set("min-width", "0").set("overflow-wrap", "anywhere");
+                    if (unassigned) {
+                        legend.add(item);
+                    } else {
+                        Anchor link = new Anchor(jiraIssueUrl(label), item);
+                        link.setTarget("_blank");
+                        link.getElement().setAttribute("rel", "noopener noreferrer");
+                        link.getElement().setAttribute("aria-label", "Open " + text + " in Jira (new tab)");
+                        link.getElement().setAttribute("title", "Open " + label + " in Jira (new tab)");
+                        link.getStyle().set("min-width", "0").set("max-width", "100%")
+                                .set("text-decoration", "underline").set("text-underline-offset", "3px");
+                        legend.add(link);
+                    }
                 });
         return legend;
     }
@@ -412,9 +425,6 @@ public class RoadmapView extends VerticalLayout {
         content.addClassName("usage-content");
         content.getStyle().set("gap", "16px").set("min-width",
                 (USAGE_NAME_COL_PX + workload.weekStarts().size() * 145) + "px");
-        if (!workload.subtaskOverrunWarnings().isEmpty()) {
-            content.add(subtaskOverrunAlert(workload.subtaskOverrunWarnings()));
-        }
         content.add(weekHeader(workload.weekStarts(), workload.asOf(), "Role / person", "weekly plan and capacity"));
 
         boolean anyone = false;
@@ -587,40 +597,6 @@ public class RoadmapView extends VerticalLayout {
                 .set("background", critical ? "#FDECEA" : "#FFF4D6").set("border-radius", "999px").set("padding", "1px 7px")
                 .set("align-self", "flex-start");
         return chip;
-    }
-
-    /**
-     * Banner shown above "Carga del equipo" when one or more parent tasks have Sub-tasks
-     * exceeding the parent's budget. Explicit local estimates are preserved; only
-     * unestimated subtasks share available budget. An overrun is surfaced, not hidden.
-     */
-    private Component subtaskOverrunAlert(List<PlanningWarning> overruns) {
-        VerticalLayout alert = compactLayout();
-        alert.addClassName("subtask-overrun-alert");
-        alert.getStyle().set("gap", "4px").set("width", "100%").set("box-sizing", "border-box")
-                .set("padding", "10px 14px").set("border-radius", "8px")
-                .set("background", "#FDECEA").set("border", "1px solid #F3C7C2");
-
-        Span title = new Span("⚠ Subtasks exceed the parent estimate (" + overruns.size()
-                + (overruns.size() == 1 ? " task)" : " tasks)"));
-        title.getStyle().set("font-size", "12px").set("font-weight", "800").set("color", "#B3261E");
-        alert.add(title);
-
-        for (PlanningWarning overrun : overruns) {
-            Anchor key = new Anchor(jiraIssueUrl(overrun.taskKey()), overrun.taskKey());
-            key.setTarget("_blank");
-            key.getElement().setAttribute("rel", "noopener noreferrer");
-            key.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-
-            Span line = new Span(overrun.summary() + " (" + overrun.assigneeName() + ") - " + overrun.reason());
-            line.getStyle().set("font-size", "11px").set("color", "#7A2E27");
-
-            Div row = new Div(key, line);
-            row.getStyle().set("display", "flex").set("gap", "8px").set("align-items", "baseline")
-                    .set("flex-wrap", "wrap");
-            alert.add(row);
-        }
-        return alert;
     }
 
     private Span mutedLine(String text, boolean strong) {

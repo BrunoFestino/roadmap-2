@@ -14,7 +14,7 @@ async function main() {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   try {
-    await page.goto((process.env.DEMO_URL || 'http://127.0.0.1:18084') + '/information');
+    await page.goto((process.env.TEST_FIXTURE_URL || 'http://127.0.0.1:18084') + '/information');
     await page.locator('.information-hero').waitFor();
     await page.waitForFunction(() => window.Vaadin?.Flow?.clients &&
       Object.values(window.Vaadin.Flow.clients).every(client => !client.isActive()));

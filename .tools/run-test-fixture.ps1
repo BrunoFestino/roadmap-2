@@ -7,6 +7,6 @@ if (-not (Test-Path -LiteralPath $classpathFile)) { throw 'Run .\mvnw.cmd -Pprod
 $classpath = (Join-Path $repo 'target/test-classes') + ';' + (Join-Path $repo 'target/classes') + ';' + (Get-Content -Raw -LiteralPath $classpathFile).Trim()
 Push-Location $repo
 try {
-    & (Join-Path $env:JAVA_HOME 'bin/java.exe') -cp $classpath roadmap.fixture.DemoApplication "--server.port=$Port"
+    & (Join-Path $env:JAVA_HOME 'bin/java.exe') -cp $classpath roadmap.fixture.TestFixtureApplication "--server.port=$Port"
     exit $LASTEXITCODE
 } finally { Pop-Location }

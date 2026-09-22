@@ -21,6 +21,7 @@ class ExternalConfigurationTest {
                 .withSystemProperties(
                         "ROADMAP_JIRA_BASE_URL=https://jira.configured.example",
                         "ROADMAP_JIRA_TOKEN=secret-from-environment",
+                        "ROADMAP_JIRA_PROJECT=TEST",
                         "ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE=customfield_9101",
                         "ROADMAP_TEAM_MEMBERS=configured|Configured Person|DEVOPS",
                         "ROADMAP_STACK_ALIASES_BACKEND=services")
@@ -35,6 +36,13 @@ class ExternalConfigurationTest {
                     assertThat(context.getBean(TaskStackResolver.class)
                             .classifyJira(List.of("services")).stack()).isEqualTo(TaskStack.BACKEND);
                 });
+    }
+
+    @Test void jiraProjectMustBeExplicitlyConfigured() {
+        for (String project : new String[]{null, "", "   "}) {
+            assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", project, null, null))
+                    .isInstanceOf(IllegalArgumentException.class).hasMessageContaining("roadmap.jira.project");
+        }
     }
 
     @Test void rosterCanChangeMembersWithoutChangingCode() {
@@ -70,10 +78,10 @@ class ExternalConfigurationTest {
     }
 
     @Test void jiraFieldIdsMustBeValidAndDifferent() {
-        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "DEMO", null, null,
+        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "TEST", null, null,
                 "customfield_1", "customfield_1", "customfield_2", "customfield_3", "customfield_4"))
                 .isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "DEMO", null, null,
+        assertThatThrownBy(() -> new JiraProperties("https://jira.example", "token", "TEST", null, null,
                 "story_points", "customfield_2", "customfield_3", "customfield_4", "customfield_5"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("customfield_<number>");

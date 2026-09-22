@@ -6,6 +6,8 @@ import com.example.roadmap.jira.dto.JiraIssueDto;
 import com.example.roadmap.jira.dto.JiraSearchResponseDto;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.LinkedHashMap;
 import java.util.Objects;
 import org.springframework.web.client.RestClient;
 
@@ -66,6 +68,25 @@ public class JiraRestClient implements JiraClient {
                 "summary,status,duedate");
     }
 
+    @Override
+    public Map<String, String> findIssueSummaries(List<String> issueKeys) {
+        List<String> keys = issueKeys.stream().filter(Objects::nonNull)
+                .map(String::trim).filter(key -> key.matches("[A-Za-z][A-Za-z0-9_]*-[0-9]+"))
+                .distinct().toList();
+        Map<String, String> summaries = new LinkedHashMap<>();
+        for (int start = 0; start < keys.size(); start += PAGE_SIZE) {
+            List<String> batch = keys.subList(start, Math.min(start + PAGE_SIZE, keys.size()));
+            var response = searchAllPages("key IN (" + String.join(", ", batch) + ") ORDER BY key ASC", "summary");
+            for (JiraIssueDto issue : response.issues()) {
+                if (issue != null && batch.contains(issue.key()) && issue.fields() != null
+                        && issue.fields().summary() != null && !issue.fields().summary().isBlank()) {
+                    summaries.put(issue.key(), issue.fields().summary());
+                }
+            }
+        }
+        return Map.copyOf(summaries);
+    }
+
     private JiraSearchResponseDto searchAllPages(String jql, String fields) {
         List<JiraIssueDto> issues = new ArrayList<>();
         int startAt = 0;
@@ -108,7 +129,7 @@ public class JiraRestClient implements JiraClient {
     }
 
     private String roadmapFields() {
-        return String.join(",", "summary", "status", "issuetype", "parent", "assignee", "duedate",
+        return String.join(",", "summary", "status", "issuetype", "parent", "subtasks", "assignee", "duedate",
                 "timetracking", "labels", properties.fieldEffortEstimate(), properties.fieldEpicLink(),
                 properties.fieldParentMilestone(), properties.fieldTargetStart(),
                 properties.fieldFirstTimeInProgress());

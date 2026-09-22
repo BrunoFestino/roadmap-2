@@ -47,28 +47,28 @@ Tampoco cambia automáticamente responsables o fechas para resolver una sobrecar
 - Las tareas normales usan **Original Estimate de Jira Time Tracking**. El
   custom field de MD y las estimaciones locales no reemplazan ese valor.
 - Las subtareas usan **Local effort**, en MD. Su Original Estimate de Jira no se
-  usa para estimarlas. Si no tienen estimación local positiva, pueden heredar
-  una parte del presupuesto disponible de su tarea padre.
+  usa para estimarlas. Sin MD local positivo, aparecen en Needs attention y no
+  agregan carga.
 - El trabajo pendiente es el esfuerzo efectivo menos las horas registradas en
   Jira, con mínimo cero. Registrar horas no reduce la estimación original.
 
-#### Padre y subtareas: primero estimaciones, después reparto del saldo
+#### Padre y subtareas: solo esfuerzo propio de las subtareas
 
-Ejemplo sin trabajo registrado ni subtareas finalizadas:
+Si una tarea tiene subtareas, el padre queda excluido del Gantt, la carga y Plan
+tasks. Su esfuerzo no se reparte ni se cuenta como un saldo adicional.
 
-- Padre: 10 MD. Subtarea A: 3 MD locales. B y C: sin estimación local.
-- A conserva 3 MD. B y C reciben 3,5 MD cada una. El padre agrega 0 MD de carga.
-- Total: **10 MD**, no 20 MD. El reparto heredado se calcula, no se guarda como
-  estimación local. El Gantt puede seguir mostrando los 10 MD originales del padre.
+- Padre de 10 MD, subtarea A de 3 MD locales y B/C sin estimación: se cuentan
+  **3 MD**. B y C aparecen en Needs attention hasta que se cargue su MD local.
+- Subtareas de 3 y 4 MD: total **7 MD**, sin esfuerzo residual del padre.
+- Subtareas de 8 y 5 MD: total **13 MD**, sin comparación con el presupuesto padre.
+- Tarea sin subtareas: conserva su propio Original Estimate de Jira Time Tracking.
 
-Si todas las subtareas tienen estimación (por ejemplo, 3 y 4 MD), el padre conserva
-los 3 MD restantes de carga. Si suman 13 MD frente a un padre de 10 MD, se respetan
-los 13 MD, el padre aporta cero y se muestra una advertencia de presupuesto.
-
-Las subtareas finalizadas consumen primero sus horas registradas; si no tienen,
-su estimación local. Ese consumo se descuenta antes de repartir el saldo entre
-subtareas abiertas sin estimación. Epics y User Stories son contexto, no padres
-que aporten este presupuesto ejecutable.
+El padre sigue excluido si sus subtareas están cerradas, no tienen fechas o
+estimación, o pertenecen a personas fuera del equipo. Se consulta el campo
+estándar subtasks de Jira además de los vínculos parent de las subtareas cargadas.
+Las subtareas cerradas no aportan carga futura. Los worklogs de cada subtarea
+reducen solo su propio esfuerzo pendiente. Epics y User Stories conservan su
+tratamiento como contexto.
 
 #### Distribución de horas: considera las otras tareas de la persona
 
@@ -136,7 +136,7 @@ Java 21, Spring Boot 3.5.5, Vaadin 24.9.5, PostgreSQL y migraciones Flyway.
 La UI y los cálculos viven en el mismo proyecto; no hay que iniciar un frontend separado.
 
 - [JiraGanttDataProvider](src/main/java/com/example/roadmap/gantt/application/data/JiraGanttDataProvider.java): combina Jira, planificación local y ausencias.
-- [EffortEstimates](src/main/java/com/example/roadmap/gantt/application/model/EffortEstimates.java) y [SubtaskBudget](src/main/java/com/example/roadmap/gantt/application/model/SubtaskBudget.java): origen del esfuerzo y reparto padre/subtareas.
+- [EffortEstimates](src/main/java/com/example/roadmap/gantt/application/model/EffortEstimates.java) y [TaskHierarchy](src/main/java/com/example/roadmap/gantt/application/model/TaskHierarchy.java): origen del esfuerzo y exclusión de tareas con subtareas.
 - [LevelledContour](src/main/java/com/example/roadmap/gantt/application/model/LevelledContour.java) y [CapacityAllocation](src/main/java/com/example/roadmap/gantt/application/model/CapacityAllocation.java): distribución por persona y encaje de horas dentro de fechas.
 - [BuildWorkloadReportUseCase](src/main/java/com/example/roadmap/gantt/application/analytics/BuildWorkloadReportUseCase.java): carga semanal, capacidad y disponibilidad.
 - [InformationView](src/main/java/com/example/roadmap/gantt/ui/InformationView.java): ayuda dentro de la app.
@@ -231,7 +231,7 @@ creates and migrates an empty schema automatically.
 | --- | --- | --- | --- |
 | `ROADMAP_JIRA_BASE_URL` | Yes | None | Base URL of the Jira instance |
 | `ROADMAP_JIRA_TOKEN` | Yes | None | Jira PAT sent as a Bearer token |
-| `ROADMAP_JIRA_PROJECT` | No | `DEMO` | Jira project containing the roadmap |
+| `ROADMAP_JIRA_PROJECT` | Yes | - | Jira project containing the roadmap |
 | `ROADMAP_JIRA_CONNECT_TIMEOUT` | No | `10s` | Jira connection timeout |
 | `ROADMAP_JIRA_READ_TIMEOUT` | No | `30s` | Jira response timeout |
 | `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE` | No | `customfield_10001` | Legacy field still requested from Jira; not used as the task estimate source (tasks use Time Tracking Original Estimate) |

@@ -69,7 +69,7 @@ public final class EpicPalette {
     /**
      * The colour for an epic key, stable for the lifetime of that key.
      *
-     * @param epicKey Jira key of the epic, e.g. {@code "DEMO-9800"}; blank or {@code null}
+     * @param epicKey Jira key of the epic, e.g. {@code "TEST-9800"}; blank or {@code null}
      *                yields {@link #UNASSIGNED}
      */
     public static String colorFor(String epicKey) {

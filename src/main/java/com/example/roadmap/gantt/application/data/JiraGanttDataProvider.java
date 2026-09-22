@@ -4,7 +4,7 @@ import com.example.roadmap.gantt.application.analytics.UnplannedReason;
 import com.example.roadmap.gantt.application.analytics.UnplannedTask;
 import com.example.roadmap.gantt.application.model.GanttTask;
 import com.example.roadmap.gantt.application.model.EffortEstimates;
-import com.example.roadmap.gantt.application.model.SubtaskBudget;
+import com.example.roadmap.gantt.application.model.TaskHierarchy;
 import com.example.roadmap.gantt.application.model.GanttTeamRoster;
 import com.example.roadmap.gantt.application.model.Milestone;
 import com.example.roadmap.gantt.application.model.StartDateSource;
@@ -13,7 +13,6 @@ import com.example.roadmap.gantt.application.model.TaskStackResolver;
 import com.example.roadmap.gantt.application.model.TaskStackSource;
 import com.example.roadmap.gantt.application.model.TeamAbsence;
 import com.example.roadmap.gantt.application.model.TeamMember;
-import com.example.roadmap.gantt.application.model.WorkingDays;
 import com.example.roadmap.gantt.application.model.WorkflowStatus;
 import com.example.roadmap.config.JiraProperties;
 import com.example.roadmap.jira.JiraClient;
@@ -33,21 +32,17 @@ import java.util.function.Predicate;
 /**
  * Loads Jira issues and local schedules once per snapshot.
  *
- * Standard tasks use Jira Original Estimate only. Subtasks use a local estimate, or
- * inherit an equal share of the parent budget left after explicit sibling estimates
- * and finalized-subtask consumption. Budget reservations are resolved before date
- * filtering so undated work does not silently donate its budget to dated siblings.
+ * Standard tasks use Jira Original Estimate. Subtasks use only positive local MD.
+ * Parents with subtasks are excluded before filtering dates, estimates or assignees.
  *
  * Start priority is local Start, Jira Target Start, then First Time In Progress for
  * in-progress tasks. A local End commits the window; otherwise the fallback uses
  * enough available business days at six productive hours per day. Missing starts
  * and unresolved estimates appear under Needs attention.
  *
- * Gantt tasks retain original estimates (or explicitly marked inherited shares).
- * The snapshot also carries the effective workload allocation, avoiding parent/child
- * double counting while keeping both projections consistent. Jira is never modified.
+ * All views share the same leaf tasks and their own estimates. Jira is never modified.
  */
-@org.springframework.stereotype.Component
+@Component
 public class JiraGanttDataProvider implements GanttDataProvider {
 
     private final JiraClient jiraApiClient;
@@ -68,7 +63,6 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         this.taskStackResolver = taskStackResolver;
     }
 
-    /** {@code true} for weekends and any stored absence of {@code username}. */
     private static final org.slf4j.Logger LOG = org.slf4j.LoggerFactory.getLogger(JiraGanttDataProvider.class);
 
     @Override
@@ -79,8 +73,14 @@ public class JiraGanttDataProvider implements GanttDataProvider {
     @Override
     public RoadmapSnapshot snapshot(List<TeamAbsence> absences) {
         RoadmapSnapshot loaded = loadTasks(absences);
-        return new RoadmapSnapshot(loaded.tasks(), milestones(), absences, loaded.unplannedTasks(),
-                loaded.completedSubtasks(), loaded.subtaskBudget());
+        List<Milestone> milestones = milestones();
+        Map<String, String> summaries = new HashMap<>(loaded.issueSummaries());
+        milestones.forEach(milestone -> summaries.put(milestone.key(), milestone.name()));
+        List<String> missing = loaded.tasks().stream().map(GanttTask::initiativeKey)
+                .filter(java.util.Objects::nonNull).distinct().filter(key -> !summaries.containsKey(key)).toList();
+        if (!missing.isEmpty()) summaries.putAll(jiraApiClient.findIssueSummaries(missing));
+        return new RoadmapSnapshot(loaded.tasks(), milestones, absences, loaded.unplannedTasks(),
+                loaded.parentTaskKeys(), summaries);
     }
 
     private RoadmapSnapshot loadTasks(List<TeamAbsence> absences) {
@@ -91,56 +91,31 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         issues = issues == null ? List.of() : issues;
         epicIssues = epicIssues == null ? List.of() : epicIssues;
         if (issues.isEmpty() && epicIssues.isEmpty()) {
-            return new RoadmapSnapshot(List.of(), List.of(), absences, List.of(), List.of());
+            return new RoadmapSnapshot(List.of(), List.of(), absences, List.of());
         }
 
         Map<String, TargetStartRepository.Schedule> schedules = targetStartRepository.findSchedules();
         List<JiraIssueDto> indexedIssues = new ArrayList<>(issues);
         indexedIssues.addAll(epicIssues);
+        Map<String, String> summaries = new HashMap<>();
+        for (JiraIssueDto issue : indexedIssues) {
+            if (issue != null && issue.key() != null && issue.fields() != null
+                    && issue.fields().summary() != null && !issue.fields().summary().isBlank()) {
+                summaries.put(issue.key(), issue.fields().summary());
+            }
+        }
         InitiativeIndex initiatives = InitiativeIndex.of(indexedIssues,
                 jiraProperties.fieldEpicLink(), jiraProperties.fieldParentMilestone());
         List<GanttTask> result = new ArrayList<>();
         List<UnplannedTask> unplanned = new ArrayList<>();
-        List<CompletedSubtaskEffort> completedSubtasks = new ArrayList<>();
-        List<Draft> drafts = new ArrayList<>();
-        Set<String> activeIssueKeys = issues.stream()
-                .filter(issue -> issue != null && issue.key() != null && issue.fields() != null)
-                .filter(issue -> !WorkflowStatus.isFinal(statusName(issue.fields())))
-                .map(JiraIssueDto::key)
-                .collect(java.util.stream.Collectors.toSet());
-
+        Set<String> parentKeys = TaskHierarchy.parentKeys(issues);
         for (JiraIssueDto issue : issues) {
-            if (isFinalSubtaskOfActiveParent(issue, activeIssueKeys)) {
-                double consumedMd = completedSubtaskConsumedMd(issue.fields(), schedules.get(issue.key()));
-                if (consumedMd > 0) {
-                    completedSubtasks.add(new CompletedSubtaskEffort(
-                            issue.key(), issue.fields().parent().key(), consumedMd));
-                }
-                continue;
-            }
-            if (issue != null && issue.fields() != null && WorkflowStatus.isFinal(statusName(issue.fields()))) {
-                continue;
-            }
+            if (issue == null || issue.key() == null || issue.fields() == null
+                    || parentKeys.contains(issue.key()) || WorkflowStatus.isFinal(statusName(issue.fields()))) continue;
             Draft draft = toDraft(issue, schedules);
-            if (draft == null) {
-                continue;
-            }
-            drafts.add(draft);
-        }
-
-        Map<String, Double> consumed = new HashMap<>();
-        completedSubtasks.forEach(task -> consumed.merge(task.parentKey(), task.consumedMd(), Double::sum));
-        SubtaskBudget.Allocation budget = SubtaskBudget.allocate(drafts.stream()
-                .map(draft -> new SubtaskBudget.Entry(draft.key, draft.parentKey, draft.issueType,
-                        draft.hasEstimate ? draft.md : null)).toList(), consumed);
-        for (Draft draft : drafts) {
-            if (!draft.hasEstimate && budget.inheritedKeys().contains(draft.key)
-                    && budget.effectiveMd().getOrDefault(draft.key, 0.0) > 0.000001) {
-                draft.md = budget.effectiveMd().get(draft.key);
-                draft.hasEstimate = true;
-            }
+            if (draft == null) continue;
             if (!draft.hasEstimate) {
-                LOG.warn("Issue {} has neither an applicable estimate nor inherited parent budget; listed under Needs attention", draft.key);
+                LOG.warn("Issue {} has no applicable estimate; listed under Needs attention", draft.key);
                 // No effort estimate at all: the task can't be placed on the Gantt or counted
                 // towards anyone's load, regardless of whether it has dates. It only shows up
                 // in the "necesita atención" tray until an estimate is loaded.
@@ -160,7 +135,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
             draft.milestoneKey = initiatives.resolveMilestone(draft.key);
             Predicate<LocalDate> blocked = RoadmapSnapshot.calendar(absences, draft.member.username());
             GanttTask task = draft.toTask(draft.actualStartDate, draft.actualStartDate, draft.actualSource, blocked);
-            result.add(budget.inheritedKeys().contains(draft.key) ? task.withInheritedEffort() : task);
+            result.add(task);
         }
 
         for (JiraIssueDto issue : epicIssues) {
@@ -170,22 +145,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
             }
         }
 
-        return new RoadmapSnapshot(result, List.of(), absences, unplanned, completedSubtasks, budget);
-    }
-
-    private boolean isFinalSubtaskOfActiveParent(JiraIssueDto issue, Set<String> activeIssueKeys) {
-        if (issue == null || issue.fields() == null || issue.fields().issuetype() == null
-                || issue.fields().parent() == null) {
-            return false;
-        }
-        return "Sub-task".equalsIgnoreCase(issue.fields().issuetype().name())
-                && WorkflowStatus.isFinal(statusName(issue.fields()))
-                && activeIssueKeys.contains(issue.fields().parent().key());
-    }
-
-    private double completedSubtaskConsumedMd(JiraIssueDto.Fields fields,
-                                               TargetStartRepository.Schedule schedule) {
-        return EffortEstimates.completedSubtaskMd(fields, schedule == null ? null : schedule.effortMd());
+        return new RoadmapSnapshot(result, List.of(), absences, unplanned, parentKeys, summaries);
     }
 
     private String statusName(JiraIssueDto.Fields fields) {
@@ -250,6 +210,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
             Set<String> epics = new HashSet<>();
 
             for (JiraIssueDto issue : issues) {
+                if (issue == null) continue;
                 JiraIssueDto.Fields fields = issue.fields();
                 if (issue.key() == null || fields == null) {
                     continue;
@@ -348,7 +309,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
                 ? 0L
                 : fields.timetracking().timeSpentSeconds();
         draft.created = parseDate(fields.created());
-        draft.issueType = fields.issuetype() == null || fields.issuetype().name() == null
+        draft.issueType = EffortEstimates.isSubtask(fields) ? "Sub-task" : fields.issuetype() == null || fields.issuetype().name() == null
                 ? "Task" : fields.issuetype().name();
         draft.schedule = schedules.get(draft.key);
         TaskStackResolver.Resolution stackResolution = taskStackResolver.resolve(
@@ -356,9 +317,6 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         draft.stack = stackResolution.stack();
         draft.stackSource = stackResolution.source();
         draft.prjTaskLabels = prjTaskLabels(fields.labels());
-        // Only Jira's literal "Sub-task" type discounts its effort from its parent's load
-        // further down the pipeline; the raw parent link is still captured here regardless
-        // of type, and the analytics layer decides what to do with it.
         draft.parentKey = fields.parent() != null ? fields.parent().key() : null;
 
         resolveActualStart(draft, fields);

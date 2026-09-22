@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 // Read-only UI smoke test. Screenshots remain local in the ignored evidence folder.
 async function main() {
   const phase = process.argv[2] || 'after';
-  const base = process.env.DEMO_URL || 'http://127.0.0.1:18083';
+  const base = process.env.TEST_FIXTURE_URL || 'http://127.0.0.1:18083';
   const output = path.join(__dirname, 'evidence', 'visual-' + phase);
   fs.mkdirSync(output, { recursive: true });
   const state = async () => (await fetch(base + '/test/state')).json();
@@ -44,11 +44,13 @@ async function main() {
         await page.locator('.usage-task-breakdown').first().scrollIntoViewIfNeeded();
         await page.screenshot({ path: path.join(output, 'effort-expanded.png') });
         for (const id of ['roadmap-histogram', 'roadmap-by-role', 'roadmap-unplanned']) {
+          console.log('Navigate:', id);
           await page.locator('[data-section-target="' + id + '"]').click();
           await page.waitForFunction(id => {
             const nav = document.querySelector('.roadmap-section-navigation').getBoundingClientRect();
             const section = document.getElementById(id).getBoundingClientRect();
-            return location.hash === '#' + id && section.top >= nav.bottom && section.top <= nav.bottom + 150
+            const visibleAtEnd = id === 'roadmap-unplanned' && section.bottom <= innerHeight && section.top < innerHeight / 2;
+            return location.hash === '#' + id && section.top >= nav.bottom && (section.top <= nav.bottom + 150 || visibleAtEnd)
               && document.querySelector('[data-section-target="' + id + '"]').hasAttribute('active');
           }, id);
           await page.screenshot({ path: path.join(output, id + '.png') });
@@ -58,9 +60,10 @@ async function main() {
         await page.locator('vaadin-grid-cell-content .planning-grid-text').filter({ hasText: 'Epic' }).first().click();
         await page.waitForFunction(() => !document.querySelector('.planning-save-button')?.disabled);
         assert.equal(await page.locator('vaadin-number-field').evaluate(e => e.disabled), true);
-        await page.getByRole('textbox', { name: 'Jira ID', exact: true }).fill('DEMO-TEST');
-        await page.locator('vaadin-grid-cell-content .planning-grid-text').filter({ hasText: 'Friday-to-Monday test' }).click();
-        await page.waitForFunction(() => document.querySelector('.selection-instruction')?.textContent.includes('DEMO-TEST'));
+        await page.getByRole('textbox', { name: 'Jira ID', exact: true }).fill('TEST-TEST');
+        await ready();
+        await page.locator('.planning-grid-text[title]:visible').filter({ hasText: /^Friday-to-Monday test$/ }).click();
+        await page.waitForFunction(() => document.querySelector('.selection-instruction')?.textContent.includes('TEST-TEST'));
         assert.equal(await page.locator('vaadin-number-field').evaluate(e => e.disabled), true);
         assert.equal(await page.locator('.planning-save-button').isEnabled(), true);
         if (phase !== 'before') assert.ok((await page.locator('.planning-grid').boundingBox()).height < 180, 'Filtered grid leaves unnecessary blank space');
@@ -92,7 +95,7 @@ async function main() {
     }
     assert.deepEqual(errors, []);
     assert.deepEqual(await state(), initialState, 'Visual checks must not alter saved data');
-    console.log('PASS: four routes, responsive layout, task selection, section navigation, unchanged demo data, no JavaScript errors.');
+    console.log('PASS: four routes, responsive layout, task selection, section navigation, unchanged fixture data, no JavaScript errors.');
   } finally {
     await browser.close();
   }

@@ -8,6 +8,8 @@ import com.example.roadmap.gantt.application.model.GanttTeamRoster;
 import com.example.roadmap.gantt.application.model.EffortEstimates;
 import com.example.roadmap.gantt.application.model.Role;
 import com.example.roadmap.gantt.application.model.TaskStack;
+import com.example.roadmap.gantt.application.model.TaskHierarchy;
+import com.example.roadmap.gantt.application.model.WorkflowStatus;
 import com.example.roadmap.gantt.application.model.TaskStackResolver;
 import com.example.roadmap.gantt.application.model.TeamMember;
 import com.example.roadmap.gantt.application.model.WorkContour;
@@ -189,7 +191,7 @@ public class TaskPlanningView extends VerticalLayout {
     }
 
     private void configureFilters() {
-        issueFilter.setPlaceholder("e.g. DEMO-123");
+        issueFilter.setPlaceholder("e.g. TEST-123");
         issueFilter.setClearButtonVisible(true);
         issueFilter.setValueChangeMode(ValueChangeMode.EAGER);
         issueFilter.addValueChangeListener(event -> applyFilters());
@@ -215,7 +217,7 @@ public class TaskPlanningView extends VerticalLayout {
         effortField.setMin(0.1);
         effortField.setStep(0.1);
         effortField.setStepButtonsVisible(true);
-        effortField.setHelperText("Subtasks only. Leave empty to share available parent budget.");
+        effortField.setHelperText("Subtasks only. A positive local estimate is required to count workload.");
         saveButton.setEnabled(false);
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         saveButton.addClassName("planning-save-button");
@@ -262,9 +264,11 @@ public class TaskPlanningView extends VerticalLayout {
     private boolean reloadTasks() {
         try {
             Map<String, TargetStartRepository.Schedule> schedules = scheduleRepository.findSchedules();
-            List<TaskPlan> loaded = new ArrayList<>(jiraClient
-                    .searchOpenIssuesByAssignees(jiraProperties.project(), teamRoster.usernames())
-                    .issues().stream()
+            var issues = jiraClient.searchWorkloadIssuesByAssignees(jiraProperties.project(), teamRoster.usernames()).issues();
+            var parents = TaskHierarchy.parentKeys(issues);
+            List<TaskPlan> loaded = new ArrayList<>(issues.stream()
+                    .filter(issue -> issue != null && issue.fields() != null && !parents.contains(issue.key()))
+                    .filter(issue -> issue.fields().status() == null || !WorkflowStatus.isFinal(issue.fields().status().name()))
                     .map(issue -> toTaskPlan(issue, schedules.get(issue.key())))
                     .filter(plan -> plan != null)
                     .toList());
@@ -385,6 +389,9 @@ public class TaskPlanningView extends VerticalLayout {
         startField.setValue(taskSelected ? plan.startDate() : null);
         endField.setValue(taskSelected ? plan.endDate() : null);
         effortField.setValue(subtaskSelected ? plan.effortMd() : null);
+        startField.setInvalid(false);
+        endField.setInvalid(false);
+        effortField.setInvalid(false);
         jiraStackField.setValue(taskSelected && !epicSelected
                 ? taskStackResolver.classifyJira(plan.jiraLabels()).displayLabel()
                 : "");

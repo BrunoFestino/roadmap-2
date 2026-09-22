@@ -21,11 +21,11 @@ class PersistenceTest {
             var schedules = new TargetStartRepository(jdbc);
             var absences = new TeamAbsenceRepository(jdbc);
             LocalDate start = LocalDate.of(2026, 9, 11);
-            schedules.saveSchedule("DEMO-TEST", start, start.plusDays(3));
-            schedules.saveSchedule("DEMO-TEST", start, start.plusDays(7), TaskStack.FRONTEND, 2.25);
+            schedules.saveSchedule("TEST-TEST", start, start.plusDays(3));
+            schedules.saveSchedule("TEST-TEST", start, start.plusDays(7), TaskStack.FRONTEND, 2.25);
             var absence = absences.add("jdoe", start, start.plusDays(1), AbsenceType.VACATION, "Prueba");
             assertThat(flyway.migrate().migrationsExecuted).isZero();
-            assertThat(new TargetStartRepository(jdbc).findScheduleByIssueKey("DEMO-TEST"))
+            assertThat(new TargetStartRepository(jdbc).findScheduleByIssueKey("TEST-TEST"))
                     .hasValue(new TargetStartRepository.Schedule(start, start.plusDays(7), 2.25, TaskStack.FRONTEND));
             assertThat(absences.findAll()).containsExactly(absence);
             absences.update(new TeamAbsence(absence.id(), absence.username(), start, start.plusDays(2), absence.type(), "Editada"));
