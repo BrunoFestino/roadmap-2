@@ -122,9 +122,9 @@ public class InformationView extends VerticalLayout {
     private Component planning() {
         return section("planning", "05", "Task planning and availability",
                 "Local planning saves dates and stack. Estimates are read from Jira and displayed in MD. It does not update Jira assignees, statuses, estimates or worklogs.",
-                rows("Choose an item", "Use Show to select Epic, Task, Subtask or All. Filter by Jira ID and person, then select a row.",
+                rows("Choose an item", "Use Show to select Epic, Story, Task, Bug, Spike, Subtask, Other or All. Filter by Jira ID and person, then select a row. Stories are context only; Bugs and Spikes consume capacity like Tasks.",
                         "Set the window", "Start and End are required. End cannot precede Start. Tasks and subtasks need at least one available business day in the window.",
-                        "Review effort", "The read-only estimate shows MD and its Jira source. For tasks and subtasks, enter Original Estimate in Jira Time Tracking: 20 h displays as 2.5 MD. For epics, enter MD in the Jira MD field. Refresh after changing Jira.",
+                        "Review effort", "The read-only estimate shows MD and its Jira source. For Tasks, Stories, Bugs, Spikes and subtasks, enter Original Estimate in Jira Time Tracking: 20 h displays as 2.5 MD. For epics, enter MD in the Jira MD field. Refresh after changing Jira.",
                         "Save and keep filters", "Saving reloads the list while preserving search and item type. The selected person is retained if still present in the refreshed list. Filters are local to this view, not saved across browser reloads or navigation away.",
                         "Choose a stack", "Local stack takes priority over recognized Jira labels, then the person's role. Conflicting recognized labels are shown as ambiguous. Changing stack does not reassign a task or create capacity.",
                         "Record absences", "Use Team availability to add, edit or remove absences. Return to Roadmap or use Refresh roadmap to rebuild the view with current planning and availability."));
@@ -136,7 +136,7 @@ public class InformationView extends VerticalLayout {
                 rows("Task planning", "Defines the inputs: the task's Start, End and optional local stack. The effort estimate is shown for reference and comes from Jira.",
                         "Team capacity & load", "Shows the calculated result: effort distributed across eight weekly buckets and compared with each person's available capacity. Expand a person to see total effort, weekly allocation and remaining work.",
                         "Workload histogram", "The same weekly allocated hours as Team capacity & load. A dotted line marks normal capacity. Excess is yellow up to 8 h per available day, then red. Each person has an independent chart scale; compare numeric values, not bar heights across people.",
-                        "By role / By person", "Gantt views show date windows. By role groups tasks by effective stack; Team capacity & load groups people by roster role. Epics and User Stories are context only. A long bar does not mean full-time dedication.",
+                        "By role / By person", "Gantt views show date windows. By role groups tasks by effective stack; Team capacity & load groups people by roster role. Epics and Stories are context only. Bugs and Spikes are executable work. A long bar does not mean full-time dedication.",
                         "Needs attention", "Missing dates and missing estimates have separate lists. Their search and person filters narrow those lists only, not the workload totals or histogram."),
                 note("Scope matters.", "Person workload covers the configured team roster. Unassigned issues and issues assigned outside that roster are not counted. This is not a project-wide backlog or a historical worklog report."));
     }

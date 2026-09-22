@@ -141,4 +141,19 @@ class JiraRestClientTest {
                 .searchWorkloadIssuesByAssignees("TEST", List.of("test")).issues()).isEmpty();
         server.verify();
     }
+
+    @Test void workloadQueryIncludesStoryBugAndSpikeIssueTypes() {
+        var builder = RestClient.builder().baseUrl("http://synthetic.invalid");
+        var server = MockRestServiceServer.bindTo(builder).build();
+        server.expect(request -> {
+                    String query = request.getURI().getQuery();
+                    assertThat(query).contains("User Story", "Story", "Bug", "Spike");
+                })
+                .andRespond(withSuccess("{\"startAt\":0,\"maxResults\":100,\"total\":0,\"issues\":[]}",
+                        MediaType.APPLICATION_JSON));
+
+        assertThat(new JiraRestClient(builder.build(), PROPERTIES)
+                .searchOpenIssuesByAssignees("TEST", List.of("test")).issues()).isEmpty();
+        server.verify();
+    }
 }

@@ -257,7 +257,7 @@ public record GanttTask(
     }
 
     public boolean isContextWork() {
-        return "Epic".equalsIgnoreCase(issueType) || "User Story".equalsIgnoreCase(issueType);
+        return RoadmapIssueType.from(issueType).isContextOnly();
     }
 
     public String effectiveEpicKey() {
@@ -273,11 +273,11 @@ public record GanttTask(
         return milestone == null ? effectiveEpicKey() : milestone;
     }
     public boolean isEpic() {
-        return "Epic".equalsIgnoreCase(issueType);
+        return RoadmapIssueType.from(issueType).isEpic();
     }
 
     public boolean isUserStory() {
-        return "User Story".equalsIgnoreCase(issueType);
+        return RoadmapIssueType.from(issueType).isStory();
     }
 
     public boolean missingEpic() {

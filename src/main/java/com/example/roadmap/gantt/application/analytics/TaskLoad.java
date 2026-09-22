@@ -13,6 +13,7 @@ import com.example.roadmap.gantt.application.model.WorkContour;
  *
  * @param taskKey    Jira issue key, e.g. {@code "TEST-10608"}
  * @param summary    short human-readable title
+ * @param issueType  Jira issue type, such as {@code Task}, {@code Bug} or {@code Spike}
  * @param hours      effort hours this task demands inside the week
  * @param dailyHours average hours per day the task demands on the days it occupies inside
  *                   this week; under a levelled contour the rate varies week to week
@@ -27,6 +28,7 @@ import com.example.roadmap.gantt.application.model.WorkContour;
 public record TaskLoad(
         String taskKey,
         String summary,
+        String issueType,
         double hours,
         double dailyHours,
         String status,

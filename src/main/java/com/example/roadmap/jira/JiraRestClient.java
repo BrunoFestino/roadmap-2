@@ -16,7 +16,7 @@ public class JiraRestClient implements JiraClient {
     private static final int PAGE_SIZE = 100;
     private static final String OPEN_STATUSES = WorkflowStatus.jiraOpenClause();
     private static final String EXECUTABLE_TYPES =
-            "issuetype IN (\"User Story\", Task, \"Test Plan\", Bug, Spike, \"L3 Problem\")";
+            "issuetype IN (\"User Story\", Story, Task, \"Test Plan\", Bug, Spike, \"L3 Problem\")";
     private final RestClient restClient;
     private final JiraProperties properties;
 

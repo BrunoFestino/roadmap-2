@@ -23,6 +23,8 @@ class TaskPlanningEffortTest {
     @Test void planningDisplaysJiraSourcesReadOnlyAndExcludesParents() {
         var jira = mock(JiraClient.class);
         var task = issue("TASK", "2026-09-14", "2.2");
+        var done = issue("DONE", "2026-09-14", "4");
+        done.fields().setStatus(new JiraIssueDto.Status("Done"));
         var parent = issue("PARENT", "2026-09-14", "99");
         var child = issue("CHILD", "2026-09-14", "1.25");
         child.fields().setIssuetype(new JiraIssueDto.IssueType("Technical subtask", true));
@@ -31,7 +33,7 @@ class TaskPlanningEffortTest {
         epic.fields().setIssuetype(new JiraIssueDto.IssueType("Epic"));
         epic.fields().setAdditionalField(PROPS.fieldEffortEstimate(), "12.5");
         when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList()))
-                .thenReturn(new JiraSearchResponseDto(List.of(parent, child, task)));
+                .thenReturn(new JiraSearchResponseDto(List.of(parent, child, task, done)));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of(epic)));
         var schedules = mock(TargetStartRepository.class);
         var view = new TaskPlanningView(jira, PROPS, schedules, mock(TeamAbsenceRepository.class),

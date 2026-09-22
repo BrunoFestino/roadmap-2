@@ -48,7 +48,7 @@ import java.util.function.Predicate;
  *
  * <h2>What is deliberately excluded</h2>
  * <ul>
- *   <li><strong>Epics and User Stories</strong> carry no capacity of their own: their effort
+ *   <li><strong>Epics and Stories</strong> carry no capacity of their own: their effort
  *       is delivered by their children, so counting both would double-book everyone. They
  *       stay visible as context bands in the roadmap only.</li>
  *   <li><strong>Overallocation is detected per person</strong>, never per role. A role total
@@ -199,7 +199,7 @@ public class BuildWorkloadReportUseCase {
                     plannedTail += plan.hoursIn(task, remainingFrom, weekEnd);
                 }
                 if (hours <= 0 && pending <= 0) continue;
-                breakdown.add(new TaskLoad(task.key(), task.summary(), hours,
+                breakdown.add(new TaskLoad(task.key(), task.summary(), task.issueType(), hours,
                         plan.dailyHoursIn(task, weekStart, weekEnd), task.status(),
                         task.start(), task.end(), task.md(), task.loggedSeconds() / 3600.0,
                         task.initiativeKey(), pending));

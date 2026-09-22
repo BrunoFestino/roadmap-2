@@ -27,7 +27,7 @@ Tampoco cambia automáticamente responsables o fechas para resolver una sobrecar
    semana y las tareas que las componen. Mostrar también el gráfico de esfuerzo.
    Un promedio sano del rol puede esconder una persona sobrecargada.
 3. **Task planning** (`/gantt/planning`): buscar un ID, seleccionar una tarea y
-   mostrar Start, End y Local stack. Cambiar Show a Subtask o Epic para mostrar
+   mostrar Start, End y Local stack. Cambiar Show a Story, Bug, Spike, Subtask o Epic para mostrar
    la estimación en MD y su fuente en Jira. Guardar mantiene los filtros de la vista; no persisten al recargar
    el navegador o salir de la pantalla.
 4. **Team availability** (`/gantt/availability`): mostrar cómo una ausencia reduce
@@ -44,7 +44,7 @@ Tampoco cambia automáticamente responsables o fechas para resolver una sobrecar
   Una semana de cinco días sin ausencias ofrece 30 h, no 40 h.
 - Team capacity & load muestra **8 semanas a partir del lunes de la semana actual**.
   Excluye fines de semana y ausencias registradas de los días disponibles.
-- Las tareas normales usan **Original Estimate de Jira Time Tracking**. El
+- Las tareas normales, Bugs y Spikes usan **Original Estimate de Jira Time Tracking**. El
   custom field de MD y las estimaciones locales no reemplazan ese valor.
 - Las subtareas también usan **Original Estimate de Jira Time Tracking**.
   Sin estimación positiva, aparecen en Needs attention y no agregan carga.
@@ -71,8 +71,9 @@ El padre sigue excluido si sus subtareas están cerradas, no tienen fechas o
 estimación, o pertenecen a personas fuera del equipo. Se consulta el campo
 estándar subtasks de Jira además de los vínculos parent de las subtareas cargadas.
 Las subtareas cerradas no aportan carga futura. Los worklogs de cada subtarea
-reducen solo su propio esfuerzo pendiente. Epics y User Stories conservan su
-tratamiento como contexto.
+reducen solo su propio esfuerzo pendiente. Epics, Stories y User Stories conservan
+su tratamiento como contexto. Bugs y Spikes son trabajo ejecutable y aparecen
+diferenciados en planificación, Gantt y carga.
 
 #### Distribución de horas: considera las otras tareas de la persona
 

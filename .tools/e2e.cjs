@@ -112,7 +112,7 @@ async function run() {
     await visible('was saved, but refresh failed');
     assert.equal((await state()).plans.find(p => p.issue_key === 'TEST-TEST').end_date, '2026-10-13');
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
-    await visible('Select an Epic, task or subtask from the table.');
+    await visible('Select an Epic, Story, Task, Bug, Spike or Subtask from the table.');
     await openPlan();
     assert.deepEqual(await dates(), ['2026-10-09', '2026-10-13']);
     console.log('PASS: dates, persistence, weekend validation, save and refresh error recovery.');

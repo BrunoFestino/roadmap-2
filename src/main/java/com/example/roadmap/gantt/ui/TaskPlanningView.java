@@ -13,6 +13,7 @@ import com.example.roadmap.gantt.application.model.WorkflowStatus;
 import com.example.roadmap.gantt.application.model.TaskStackResolver;
 import com.example.roadmap.gantt.application.model.TeamMember;
 import com.example.roadmap.gantt.application.model.WorkContour;
+import com.example.roadmap.gantt.application.model.RoadmapIssueType;
 import com.example.roadmap.gantt.ui.style.GanttStyle;
 import com.example.roadmap.jira.JiraClient;
 import com.example.roadmap.jira.dto.JiraIssueDto;
@@ -62,7 +63,7 @@ public class TaskPlanningView extends VerticalLayout {
     private final ComboBox<String> assigneeFilter = new ComboBox<>("Person");
     private final ComboBox<PlanningKind> typeFilter = new ComboBox<>("Show");
     private final Span gridHint = new Span("Scroll the table horizontally to view all details.");
-    private final Span selectedTask = new Span("Select an Epic, task or subtask from the table.");
+    private final Span selectedTask = new Span("Select an Epic, Story, Task, Bug, Spike or Subtask from the table.");
     private final DatePicker startField = new DatePicker("Start");
     private final DatePicker endField = new DatePicker("End");
     private final NumberField effortField = new NumberField("Jira estimate (MD)");
@@ -111,9 +112,9 @@ public class TaskPlanningView extends VerticalLayout {
     }
 
     private Component subtitle() {
-        Span subtitle = new Span("Plan open Epics, tasks and subtasks. "
+        Span subtitle = new Span("Plan open Epics, Stories, Tasks, Bugs, Spikes and Subtasks. "
                 + "This screen defines dates and stack; Team capacity & load shows the resulting weekly allocation. "
-                + "Tasks and subtasks use Jira Time Tracking Original Estimate; parent tasks with subtasks are excluded. "
+                + "Tasks, Stories, Bugs, Spikes and subtasks use Jira Time Tracking Original Estimate; parent issues with subtasks are excluded. "
                 + "The local stack is optional and takes priority over Jira and the person's role. "
                 + "Epics use the Jira MD field and never consume person capacity. Milestones use only "
                 + "their Jira Delivery Date.");
@@ -267,7 +268,7 @@ public class TaskPlanningView extends VerticalLayout {
             var parents = TaskHierarchy.parentKeys(issues);
             List<TaskPlan> loaded = new ArrayList<>(issues.stream()
                     .filter(issue -> issue != null && issue.fields() != null && !parents.contains(issue.key()))
-                    .filter(issue -> issue.fields().status() == null || !WorkflowStatus.isFinal(issue.fields().status().name()))
+                    .filter(issue -> !isFinal(issue.fields()))
                     .map(issue -> toTaskPlan(issue, schedules.get(issue.key())))
                     .filter(plan -> plan != null)
                     .toList());
@@ -293,7 +294,7 @@ public class TaskPlanningView extends VerticalLayout {
 
     private TaskPlan toTaskPlan(JiraIssueDto issue, TargetStartRepository.Schedule schedule) {
         JiraIssueDto.Fields fields = issue.fields();
-        if (issue.key() == null || fields == null || fields.assignee() == null) {
+        if (issue.key() == null || fields == null || fields.assignee() == null || isFinal(fields)) {
             return null;
         }
         TeamMember member = teamRoster.byUsername(fields.assignee().name());
@@ -308,7 +309,7 @@ public class TaskPlanningView extends VerticalLayout {
         }
         LocalDate effectiveStart = scheduledStart == null ? jiraStart : scheduledStart;
         TaskStack localStack = schedule == null ? null : schedule.localStack();
-        return new TaskPlan(EffortEstimates.isSubtask(fields) ? PlanningKind.SUBTASK : PlanningKind.TASK, issue.key(),
+        return new TaskPlan(PlanningKind.from(fields), issue.key(),
                 fields.summary() == null ? issue.key() : fields.summary(),
                 member.name(), member.username(), member.role(), status,
                 effectiveStart, schedule == null ? null : schedule.endDate(),
@@ -318,7 +319,7 @@ public class TaskPlanningView extends VerticalLayout {
 
     private TaskPlan toEpicPlan(JiraIssueDto issue, TargetStartRepository.Schedule schedule) {
         JiraIssueDto.Fields fields = issue.fields();
-        if (issue.key() == null || fields == null) {
+        if (issue.key() == null || fields == null || isFinal(fields)) {
             return null;
         }
         String status = fields.status() == null || fields.status().name() == null
@@ -399,7 +400,7 @@ public class TaskPlanningView extends VerticalLayout {
         localStackField.setValue(taskSelected && !epicSelected ? plan.localStack() : null);
         updateEffectiveStack();
         if (!taskSelected) {
-            selectedTask.setText("Select an Epic, task or subtask from the table.");
+            selectedTask.setText("Select an Epic, Story, Task, Bug, Spike or Subtask from the table.");
         } else if (epicSelected) {
             selectedTask.setText(plan.issueKey() + " · " + plan.summary()
                     + ": define the Epic duration. "
@@ -440,6 +441,10 @@ public class TaskPlanningView extends VerticalLayout {
         if (selected == null) {
             return;
         }
+        if (WorkflowStatus.isFinal(selected.status())) {
+            showError("Final issues cannot be planned. Refresh the list before trying again.");
+            return;
+        }
         LocalDate startDate = startField.getValue();
         LocalDate endDate = endField.getValue();
         boolean epic = selected.kind() == PlanningKind.EPIC;
@@ -471,6 +476,10 @@ public class TaskPlanningView extends VerticalLayout {
         }
         if (reloadTasks()) showSuccess("Plan saved for " + key + ".");
         else showError("The plan for " + key + " was saved, but refresh failed. Use Refresh.");
+    }
+
+    private boolean isFinal(JiraIssueDto.Fields fields) {
+        return fields.status() != null && WorkflowStatus.isFinal(fields.status().name());
     }
 
     private LocalDate parseDate(String rawDate) {
@@ -522,8 +531,12 @@ public class TaskPlanningView extends VerticalLayout {
     private enum PlanningKind {
         ALL("All"),
         EPIC("Epic"),
+        STORY("Story"),
         TASK("Task"),
-        SUBTASK("Subtask");
+        BUG("Bug"),
+        SPIKE("Spike"),
+        SUBTASK("Subtask"),
+        OTHER("Other");
 
         private final String label;
 
@@ -533,6 +546,19 @@ public class TaskPlanningView extends VerticalLayout {
 
         String label() {
             return label;
+        }
+
+        static PlanningKind from(JiraIssueDto.Fields fields) {
+            String rawType = fields.issuetype() == null ? null : fields.issuetype().name();
+            return switch (RoadmapIssueType.from(rawType, EffortEstimates.isSubtask(fields))) {
+                case EPIC -> EPIC;
+                case STORY -> STORY;
+                case BUG -> BUG;
+                case SPIKE -> SPIKE;
+                case SUBTASK -> SUBTASK;
+                case OTHER -> OTHER;
+                case TASK -> TASK;
+            };
         }
     }
 

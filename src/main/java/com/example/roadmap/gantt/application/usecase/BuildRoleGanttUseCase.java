@@ -63,7 +63,7 @@ public class BuildRoleGanttUseCase {
         List<GanttTask> stories = tasks.stream().filter(GanttTask::isUserStory)
                 .sorted(Comparator.comparing(GanttTask::start)).toList();
         if (!stories.isEmpty()) {
-            groups.add(new GanttGroup("User Stories", "#2C8FB5", stories));
+            groups.add(new GanttGroup("Stories", "#2C8FB5", stories));
         }
     }
 }

@@ -274,6 +274,31 @@
     color: #52636b;
 }
 
+.usage-bug-chip {
+    background: #fde8e7;
+    color: #a12b25;
+}
+
+.usage-spike-chip {
+    background: #fff0d8;
+    color: #8a4b00;
+}
+
+.usage-story-chip {
+    background: #dceff6;
+    color: #0f5f85;
+}
+
+.usage-subtask-chip {
+    background: #eeeafb;
+    color: #574193;
+}
+
+.usage-epic-chip {
+    background: #e7e0f7;
+    color: #6554c0;
+}
+
 /* Shared visual language for the full application. */
 :root {
     --lumo-font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;

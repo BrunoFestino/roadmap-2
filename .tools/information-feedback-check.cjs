@@ -29,6 +29,9 @@ async function main() {
       assert.equal(options.some(v=>v.trim()==='Subtask'),false);
     } else {
       assert.ok(options.some(v=>v.trim()==='Subtask'));
+      for (const type of ['Story','Task','Bug','Spike','Subtask','Epic']) {
+        assert.ok(options.some(v=>v.trim()===type), 'Missing planning type '+type);
+      }
       await page.getByRole('option',{name:'Subtask',exact:true}).click();
       await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('TEST-2111');
       await page.getByText('Validate Face ID and fingerprint',{exact:true}).click();

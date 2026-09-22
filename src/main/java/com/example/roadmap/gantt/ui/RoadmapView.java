@@ -16,6 +16,7 @@ import com.example.roadmap.gantt.application.data.RoadmapSnapshot;
 import com.example.roadmap.gantt.application.model.EpicPalette;
 import com.example.roadmap.gantt.application.model.GanttTask;
 import com.example.roadmap.gantt.application.model.Role;
+import com.example.roadmap.gantt.application.model.RoadmapIssueType;
 import com.example.roadmap.gantt.application.model.WorkContour;
 import com.example.roadmap.gantt.application.usecase.BuildPersonGanttUseCase;
 import com.example.roadmap.gantt.application.usecase.BuildRoleGanttUseCase;
@@ -945,7 +946,8 @@ public class RoadmapView extends VerticalLayout {
         key.getElement().setAttribute("rel", "noopener noreferrer");
         key.getElement().setAttribute("title", "Open " + task.taskKey() + " in Jira");
         key.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-        Div keyLine = new Div(dot, levelChip("TASK", "usage-task-chip"), key);
+        RoadmapIssueType issueType = RoadmapIssueType.from(task.issueType());
+        Div keyLine = new Div(dot, levelChip(issueTypeDisplay(task.issueType()), issueType.chipClass()), key);
         keyLine.getStyle().set("display", "flex").set("align-items", "center").set("gap", "6px");
         Span summary = new Span(task.summary());
         summary.getStyle().set("font-size", "11px").set("color", GanttStyle.INK)
@@ -975,6 +977,12 @@ public class RoadmapView extends VerticalLayout {
         Span chip = new Span(label);
         chip.addClassNames("usage-level-chip", className);
         return chip;
+    }
+
+    private String issueTypeDisplay(String rawType) {
+        RoadmapIssueType type = RoadmapIssueType.from(rawType);
+        return type == RoadmapIssueType.OTHER && rawType != null && !rawType.isBlank()
+                ? rawType.trim().toUpperCase(Locale.ROOT) : type.chipLabel();
     }
 
     /** A single task-week cell for the current remaining-work placement. */
@@ -1295,12 +1303,14 @@ public class RoadmapView extends VerticalLayout {
 
         Div row = new Div(
                 unplannedCell(key),
+                unplannedCell(levelChip(issueTypeDisplay(task.issueType()),
+                        RoadmapIssueType.from(task.issueType()).chipClass())),
                 unplannedCell(summary),
                 unplannedCell(new Span(task.assigneeName())),
                 unplannedCell(new Span(task.status() == null ? "No status" : task.status())));
         row.addClassName("unplanned-task-card");
         row.getStyle().set("display", "grid")
-                .set("grid-template-columns", "110px minmax(260px, 2fr) minmax(160px, 1fr) 140px")
+                .set("grid-template-columns", "110px 100px minmax(260px, 2fr) minmax(160px, 1fr) 140px")
                 .set("align-items", "center").set("min-width", "670px")
                 .set("padding", "10px 14px")
                 .set("border-left", "3px solid " + task.roleColor())
@@ -1312,12 +1322,13 @@ public class RoadmapView extends VerticalLayout {
     private Div unplannedTableHeader() {
         Div header = new Div(
                 unplannedHeaderCell("Key"),
+                unplannedHeaderCell("Type"),
                 unplannedHeaderCell("Task"),
                 unplannedHeaderCell("Person"),
                 unplannedHeaderCell("Status"));
         header.addClassName("unplanned-task-header");
         header.getStyle().set("display", "grid")
-                .set("grid-template-columns", "110px minmax(260px, 2fr) minmax(160px, 1fr) 140px")
+                .set("grid-template-columns", "110px 100px minmax(260px, 2fr) minmax(160px, 1fr) 140px")
                 .set("align-items", "center").set("min-width", "670px")
                 .set("padding", "8px 14px").set("background", "#EEF4F7")
                 .set("border-bottom", "1px solid " + GanttStyle.BORDER);

@@ -319,6 +319,7 @@ public class GanttChartWidget extends Div {
                 .set("height", GanttStyle.BAR_HEIGHT + "px");
 
         String tooltip = (placed.task().isEpic() ? "Epic: " : "Task Key: ") + placed.task().key()
+                + "\nIssue Type: " + placed.task().issueType()
                 + "\nSummary: " + placed.task().summary()
                 + "\nStart Date: " + DAY_MONTH.format(placed.task().start())
                 + "\nEnd Date: " + DAY_MONTH.format(placed.task().end())
@@ -397,7 +398,7 @@ public class GanttChartWidget extends Div {
 
     /**
      * Every bar takes the colour of the epic it serves - including the epic's own bar and the
-     * user stories under it, which is what makes one initiative recognisable across groups
+     * stories under it, which is what makes one initiative recognisable across groups
      * that otherwise have nothing to do with each other. The role is not encoded here on
      * purpose: the roadmap is already grouped by role or by person, so the group heading
      * carries that information and the fill would only have repeated it.
@@ -408,7 +409,7 @@ public class GanttChartWidget extends Div {
 
     private boolean isContextGroup(GroupLayout group) {
         return "Milestones and epics".equals(group.group().label())
-                || "User Stories".equals(group.group().label());
+                || "Stories".equals(group.group().label());
     }
 
     private String formatHours(double hours) {
