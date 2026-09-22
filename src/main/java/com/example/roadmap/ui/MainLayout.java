@@ -47,7 +47,7 @@ public class MainLayout extends AppLayout {
     private SideNav navigation() {
         SideNav navigation = new SideNav();
         navigation.addItem(new SideNavItem("Roadmap", RoadmapView.class, VaadinIcon.CALENDAR.create()));
-        navigation.addItem(new SideNavItem("Plan tasks", TaskPlanningView.class, VaadinIcon.EDIT.create()));
+        navigation.addItem(new SideNavItem("Task planning", TaskPlanningView.class, VaadinIcon.EDIT.create()));
         navigation.addItem(new SideNavItem("Information", InformationView.class, VaadinIcon.INFO_CIRCLE.create()));
         navigation.addItem(new SideNavItem(
                 "Team availability", TeamAvailabilityView.class, VaadinIcon.USER_CLOCK.create()));

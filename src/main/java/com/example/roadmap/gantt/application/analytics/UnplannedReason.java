@@ -5,7 +5,7 @@ public enum UnplannedReason {
 
     /** No committed start, or a start with no end so the report had to assume 100% dedication. */
     NO_DATE("Missing date"),
-    /** No explicit effort estimate (MD field, Time Tracking, or local schedule). */
+    /** No positive Jira Time Tracking Original Estimate for a task or subtask. */
     NO_ESTIMATE("Missing estimate");
 
     private final String label;

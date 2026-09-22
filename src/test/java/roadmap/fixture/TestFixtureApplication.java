@@ -48,29 +48,29 @@ public class TestFixtureApplication {
         Flyway.configure().dataSource(source).load().migrate();
         var jdbc = new JdbcTemplate(source);
         jdbc.update("""
-                INSERT INTO roadmap_schedule (issue_key, start_date, end_date, effort_md) VALUES
-                  ('TEST-TEST',    '2026-09-11', '2026-09-14', 2),
-                  ('TEST-OVERDUE', '2026-08-17', '2026-08-21', 3),
-                  ('TEST-WEEKEND', '2026-09-12', '2026-09-13', 1),
-                  ('TEST-2101',    '2026-09-14', '2026-09-25', 5),
-                  ('TEST-2102',    '2026-09-16', '2026-10-02', 8),
-                  ('TEST-2103',    '2026-09-21', '2026-10-09', 5),
-                  ('TEST-2104',    '2026-10-05', '2026-10-16', 6),
-                  ('TEST-2105',    '2026-09-28', '2026-10-16', 8),
-                  ('TEST-2106',    '2026-10-12', '2026-10-30', 9),
-                  ('TEST-2107',    '2026-09-14', '2026-10-02', 7),
-                  ('TEST-2108',    '2026-09-17', '2026-10-09', 5),
-                  ('TEST-2111',    '2026-09-18', '2026-09-25', 2),
-                  ('TEST-2112',    '2026-09-21', '2026-09-30', 3),
-                  ('TEST-2113',    '2026-10-01', '2026-10-12', 3),
-                  ('TEST-2114',    '2026-10-12', '2026-10-23', 4),
-                  ('TEST-GREEN',   '2026-11-02', '2026-11-06', null),
-                  ('TEST-YELLOW',  '2026-11-02', '2026-11-06', null),
-                  ('TEST-RED',     '2026-11-02', '2026-11-06', null),
-                  ('TEST-PARENT',  '2026-10-19', '2026-10-30', null),
-                  ('TEST-SUB-A',   '2026-10-19', '2026-10-30', 3),
-                  ('TEST-SUB-B',   '2026-10-19', '2026-10-30', null),
-                  ('TEST-SUB-C',   '2026-10-19', '2026-10-30', null)
+                INSERT INTO roadmap_schedule (issue_key, start_date, end_date) VALUES
+                  ('TEST-TEST',    '2026-09-11', '2026-09-14'),
+                  ('TEST-OVERDUE', '2026-08-17', '2026-08-21'),
+                  ('TEST-WEEKEND', '2026-09-12', '2026-09-13'),
+                  ('TEST-2101',    '2026-09-14', '2026-09-25'),
+                  ('TEST-2102',    '2026-09-16', '2026-10-02'),
+                  ('TEST-2103',    '2026-09-21', '2026-10-09'),
+                  ('TEST-2104',    '2026-10-05', '2026-10-16'),
+                  ('TEST-2105',    '2026-09-28', '2026-10-16'),
+                  ('TEST-2106',    '2026-10-12', '2026-10-30'),
+                  ('TEST-2107',    '2026-09-14', '2026-10-02'),
+                  ('TEST-2108',    '2026-09-17', '2026-10-09'),
+                  ('TEST-2111',    '2026-09-18', '2026-09-25'),
+                  ('TEST-2112',    '2026-09-21', '2026-09-30'),
+                  ('TEST-2113',    '2026-10-01', '2026-10-12'),
+                  ('TEST-2114',    '2026-10-12', '2026-10-23'),
+                  ('TEST-GREEN',   '2026-11-02', '2026-11-06'),
+                  ('TEST-YELLOW',  '2026-11-02', '2026-11-06'),
+                  ('TEST-RED',     '2026-11-02', '2026-11-06'),
+                  ('TEST-PARENT',  '2026-10-19', '2026-10-30'),
+                  ('TEST-SUB-A',   '2026-10-19', '2026-10-30'),
+                  ('TEST-SUB-B',   '2026-10-19', '2026-10-30'),
+                  ('TEST-SUB-C',   '2026-10-19', '2026-10-30')
                 """);
         jdbc.update("""
                 INSERT INTO team_absence (id, username, start_date, end_date, absence_type, note) VALUES
@@ -114,9 +114,9 @@ public class TestFixtureApplication {
 
     @Bean TargetStartRepository schedules(JdbcTemplate jdbc) {
         return new TargetStartRepository(jdbc) {
-            @Override public void saveSchedule(String key, LocalDate start, LocalDate end, TaskStack stack, Double effortMd) {
+            @Override public void saveSchedule(String key, LocalDate start, LocalDate end, TaskStack stack) {
                 fail("schedule-save");
-                super.saveSchedule(key, start, end, stack, effortMd);
+                super.saveSchedule(key, start, end, stack);
                 fault.updateAndGet(value -> "reload-after-save".equals(value) ? "jira-load" : value);
             }
         };
@@ -139,9 +139,9 @@ public class TestFixtureApplication {
                         issue("TEST-YELLOW", "Traffic light example: 36 hours", "Task", "mjohnson", "Open", "4.5", null, null, null, null, 0),
                         issue("TEST-RED", "Traffic light example: 44 hours", "Task", "jdoe", "Open", "5.5", null, null, null, null, 0),
                         issue("TEST-PARENT", "Parent excluded when subtasks exist", "Task", "bwilson", "Open", "10", null, null, null, null, 0),
-                        issue("TEST-SUB-A", "Explicit local estimate: 3 MD", "Sub-task", "bwilson", "Open", "9", null, "TEST-PARENT", null, null, 0),
-                        issue("TEST-SUB-B", "Local estimate required", "Sub-task", "jdoe", "Open", "9", null, "TEST-PARENT", null, null, 0),
-                        issue("TEST-SUB-C", "Local estimate required", "Sub-task", "mjohnson", "Open", "9", null, "TEST-PARENT", null, null, 0),
+                        issue("TEST-SUB-A", "Jira Original Estimate: 3 MD", "Sub-task", "bwilson", "Open", "3", null, "TEST-PARENT", null, null, 0),
+                        issue("TEST-SUB-B", "Jira estimate required", "Sub-task", "jdoe", "Open", null, null, "TEST-PARENT", null, null, 0),
+                        issue("TEST-SUB-C", "Jira estimate required", "Sub-task", "mjohnson", "Open", null, null, "TEST-PARENT", null, null, 0),
                         issue("TEST-OVERDUE", "Overdue commitment", "Bug", "jdoe", "Blocked", "3", null, null, null, null, 0),
                         issue("TEST-WEEKEND", "Window with no available days", "Task", "jdoe", "Open", "1", null, null, null, null, 0),
                         issue("TEST-2101", "Biometric authentication", "Task", "asmith", "In Progress", "5", "TEST-2000", null, null, null, 8),
@@ -153,10 +153,10 @@ public class TestFixtureApplication {
                         issue("TEST-2107", "Visual regression suite", "Test Plan", "emartin", "In Progress", "7", "TEST-2002", null, null, null, 16),
                         issue("TEST-2108", "Distributed tracing", "Task", "tanderson", "Open", "5", "TEST-2001", null, null, null, 0),
 
-                        issue("TEST-2111", "Validate Face ID and fingerprint", "Sub-task", "asmith", "In Progress", null, null, "TEST-2010", null, null, 4),
-                        issue("TEST-2112", "Persist offline queue", "Sub-task", "jdoe", "Open", null, null, "TEST-2011", null, null, 0),
-                        issue("TEST-2113", "Migrate country selector", "Sub-task", "mjohnson", "Open", null, null, "TEST-2030", null, null, 0),
-                        issue("TEST-2114", "Add catalog cache", "Sub-task", "dlee", "Open", null, null, "TEST-2020", null, null, 0),
+                        issue("TEST-2111", "Validate Face ID and fingerprint", "Sub-task", "asmith", "In Progress", "2", null, "TEST-2010", null, null, 4),
+                        issue("TEST-2112", "Persist offline queue", "Sub-task", "jdoe", "Open", "3", null, "TEST-2011", null, null, 0),
+                        issue("TEST-2113", "Migrate country selector", "Sub-task", "mjohnson", "Open", "3", null, "TEST-2030", null, null, 0),
+                        issue("TEST-2114", "Add catalog cache", "Sub-task", "dlee", "Open", "4", null, "TEST-2020", null, null, 0),
 
                         issue("TEST-2201", "Reconciliation hotfix", "Bug", "rgarcia", "In Progress", "3", "TEST-2001", null, null, "2026-09-11", 4),
                         issue("TEST-2202", "Configuration panel", "Task", "bwilson", "Open", "4", "TEST-2002", null, "2026-10-19", null, 0),
@@ -226,7 +226,7 @@ public class TestFixtureApplication {
     private JiraIssueDto epic(String key, String summary, String targetStart, String dueDate, String status) {
         return new JiraIssueDto(key, new JiraIssueDto.Fields(summary, new JiraIssueDto.IssueType("Epic"), null,
                 null, new JiraIssueDto.Status(status), null, "2026-08-03", dueDate,
-                List.of(), customFields(null, null, targetStart, null)));
+                List.of(), customFields("12.5", null, targetStart, null)));
     }
 
     private Map<String, Object> customFields(String effort, String epicKey, String targetStart,

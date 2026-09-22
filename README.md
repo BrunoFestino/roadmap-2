@@ -5,7 +5,7 @@ y ausencias para mostrar el roadmap y la carga del equipo. La interfaz está en 
 
 ## Guía para Tony: presentación y consulta rápida
 
-Esta guía describe el comportamiento implementado al **20 de septiembre de 2026**.
+Esta guía describe el comportamiento implementado al **22 de septiembre de 2026**.
 La primera parte sirve para presentar el producto; al final se conservan las
 instrucciones técnicas de configuración y despliegue.
 
@@ -14,7 +14,7 @@ instrucciones técnicas de configuración y despliegue.
 Permite responder qué trabajo está previsto, quién tiene capacidad y dónde hay
 sobrecarga o información pendiente. Jira sigue siendo la fuente de tareas,
 responsables, estados y horas registradas. La app guarda en PostgreSQL las fechas
-locales, el stack, las estimaciones locales de subtareas y las ausencias.
+locales, el stack y las ausencias. Las estimaciones se leen exclusivamente de Jira.
 
 **No escribe cambios en Jira ni es un reporte histórico de horas trabajadas.**
 Tampoco cambia automáticamente responsables o fechas para resolver una sobrecarga.
@@ -23,12 +23,12 @@ Tampoco cambia automáticamente responsables o fechas para resolver una sobrecar
 
 1. **Roadmap** (`/`): mostrar las iniciativas y ventanas del Gantt. Explicar que
    una barra larga representa una ventana de fechas, no dedicación exclusiva.
-2. **Team workload**: expandir un rol y una persona para explicar las horas por
+2. **Team capacity & load**: expandir un rol y una persona para explicar las horas por
    semana y las tareas que las componen. Mostrar también el gráfico de esfuerzo.
    Un promedio sano del rol puede esconder una persona sobrecargada.
-3. **Plan tasks** (`/gantt/planning`): buscar un ID, seleccionar una tarea y
-   mostrar Start, End y Local stack. Cambiar Show a Subtask para mostrar Local
-   effort. Guardar mantiene los filtros de la vista; no persisten al recargar
+3. **Task planning** (`/gantt/planning`): buscar un ID, seleccionar una tarea y
+   mostrar Start, End y Local stack. Cambiar Show a Subtask o Epic para mostrar
+   la estimación en MD y su fuente en Jira. Guardar mantiene los filtros de la vista; no persisten al recargar
    el navegador o salir de la pantalla.
 4. **Team availability** (`/gantt/availability`): mostrar cómo una ausencia reduce
    la capacidad. Volver a Roadmap o usar Refresh roadmap para ver el recálculo.
@@ -42,13 +42,16 @@ Tampoco cambia automáticamente responsables o fechas para resolver una sobrecar
 - **1 MD = 8 horas de esfuerzo.** MD es una unidad de estimación, no un día de calendario.
 - La capacidad para planificar es **6 horas productivas por persona y día hábil**.
   Una semana de cinco días sin ausencias ofrece 30 h, no 40 h.
-- Team workload muestra **8 semanas a partir del lunes de la semana actual**.
+- Team capacity & load muestra **8 semanas a partir del lunes de la semana actual**.
   Excluye fines de semana y ausencias registradas de los días disponibles.
 - Las tareas normales usan **Original Estimate de Jira Time Tracking**. El
   custom field de MD y las estimaciones locales no reemplazan ese valor.
-- Las subtareas usan **Local effort**, en MD. Su Original Estimate de Jira no se
-  usa para estimarlas. Sin MD local positivo, aparecen en Needs attention y no
-  agregan carga.
+- Las subtareas también usan **Original Estimate de Jira Time Tracking**.
+  Sin estimación positiva, aparecen en Needs attention y no agregan carga.
+- Las épicas usan exclusivamente el **campo MD de Jira** configurado por
+  `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE`, incluidos valores decimales. Se muestra en
+  Task planning y en el tooltip del Gantt; no se suma a la carga de las personas.
+  Una épica sin MD válidos puede conservar su ventana, pero figura sin estimación.
 - El trabajo pendiente es el esfuerzo efectivo menos las horas registradas en
   Jira, con mínimo cero. Registrar horas no reduce la estimación original.
 
@@ -57,8 +60,9 @@ Tampoco cambia automáticamente responsables o fechas para resolver una sobrecar
 Si una tarea tiene subtareas, el padre queda excluido del Gantt, la carga y Plan
 tasks. Su esfuerzo no se reparte ni se cuenta como un saldo adicional.
 
-- Padre de 10 MD, subtarea A de 3 MD locales y B/C sin estimación: se cuentan
-  **3 MD**. B y C aparecen en Needs attention hasta que se cargue su MD local.
+- Padre de 10 MD, subtarea A con Original Estimate de 24 h y B/C sin estimación:
+  se cuentan **3 MD**. B y C aparecen en Needs attention hasta que se cargue su
+  Original Estimate en Jira.
 - Subtareas de 3 y 4 MD: total **7 MD**, sin esfuerzo residual del padre.
 - Subtareas de 8 y 5 MD: total **13 MD**, sin comparación con el presupuesto padre.
 - Tarea sin subtareas: conserva su propio Original Estimate de Jira Time Tracking.
@@ -114,20 +118,20 @@ de horas divisibles, no una garantía de ejecución que modele dependencias entr
 - Sin inicio, una tarea va a Needs attention y no entra en la carga fechada.
   Con inicio pero sin End local se calcula una ventana provisional a partir
   del esfuerzo y los días disponibles; sigue faltando confirmar la fecha final.
-- Una subtarea sin fechas puede reservar presupuesto del padre aunque todavía
-  no aparezca en la carga por semana. Revisar Needs attention antes de comprometer trabajo.
-- Done, Cancelled, Resolved, Closed y Obsolete no agregan carga futura; las
-  subtareas finalizadas pueden seguir consumiendo presupuesto del padre.
+- Una subtarea sin fechas no aparece en la carga por semana y no habilita usar
+  el esfuerzo del padre. Revisar Needs attention antes de comprometer trabajo.
+- Done, Cancelled, Resolved, Closed y Obsolete no agregan carga futura.
+  El padre sigue excluido aunque todas sus subtareas estén finalizadas.
   Blocked no es un estado final.
 - Si toda la ventana ya pasó o no contiene días disponibles, la app no traslada
   automáticamente el trabajo pendiente al futuro: hay que revisar las fechas.
-- No sumar a mano las estimaciones del Gantt para obtener capacidad: el workload
-  aplica el descuento padre/subtareas y el Gantt conserva las ventanas y estimaciones.
+- No sumar a mano todas las estimaciones del Gantt para obtener capacidad:
+  las épicas y User Stories son contexto y no aportan carga personal.
 - El alcance es el equipo configurado: tareas sin responsable o asignadas fuera
   de ese equipo no se cuentan. By role agrupa el Gantt por stack efectivo; Team
   workload agrupa personas por el rol del equipo, que no cambia al editar un stack.
 - Los filtros de Needs attention solo afectan sus listas, no los totales de carga.
-  El histograma usa las mismas horas semanales que Team workload, pero cada persona
+  El histograma usa las mismas horas semanales que Team capacity & load, pero cada persona
   tiene su propia escala: comparar valores, no alturas entre gráficos de personas distintas.
 
 ## Referencia técnica breve
@@ -143,6 +147,18 @@ La UI y los cálculos viven en el mismo proyecto; no hay que iniciar un frontend
 
 `./mvnw test` ejecuta las pruebas Java (`.\mvnw.cmd test` en Windows).
 `./mvnw -Pproduction package` ejecuta pruebas y empaqueta también el frontend de producción.
+
+### Migración del esfuerzo local
+
+`V4__retire_local_effort.sql` copia los MD locales existentes a
+`roadmap_legacy_effort` y retira `effort_md` de `roadmap_schedule`. Conserva fechas,
+stack y ausencias. La tabla de respaldo no participa en cálculos ni se modifica
+al guardar un plan. Las migraciones V1–V3 permanecen intactas.
+
+Flyway aplicará V4 al iniciar la versión actualizada. No convierte ni escribe
+estimaciones en Jira: las subtareas que solo tenían MD locales necesitarán su
+Original Estimate en Jira para volver a aportar carga. La pantalla de planificación
+permite consultar las estimaciones; las cargas de esfuerzo se realizan en Jira.
 
 ## Configuración y despliegue con Jira real
 
@@ -234,7 +250,7 @@ creates and migrates an empty schema automatically.
 | `ROADMAP_JIRA_PROJECT` | Yes | - | Jira project containing the roadmap |
 | `ROADMAP_JIRA_CONNECT_TIMEOUT` | No | `10s` | Jira connection timeout |
 | `ROADMAP_JIRA_READ_TIMEOUT` | No | `30s` | Jira response timeout |
-| `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE` | No | `customfield_10001` | Legacy field still requested from Jira; not used as the task estimate source (tasks use Time Tracking Original Estimate) |
+| `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE` | No | `customfield_10001` | Epic estimate in MD; tasks and subtasks use Time Tracking Original Estimate |
 | `ROADMAP_JIRA_FIELD_EPIC_LINK` | No | `customfield_10002` | Jira field containing the epic link |
 | `ROADMAP_JIRA_FIELD_PARENT_MILESTONE` | No | `customfield_10003` | Jira field containing a parent milestone |
 | `ROADMAP_JIRA_FIELD_TARGET_START` | No | `customfield_10004` | Jira field containing target start |

@@ -163,7 +163,7 @@ async function run() {
     await page.goto(base);
     await visible('The roadmap could not be loaded.');
     await page.getByRole('button', { name: 'Refresh roadmap', exact: true }).click();
-    await visible('Team workload');
+    await visible('Team capacity & load');
     await idle();
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(out, 'roadmap.png') });

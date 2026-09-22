@@ -32,7 +32,7 @@ import java.util.function.Predicate;
 /**
  * Loads Jira issues and local schedules once per snapshot.
  *
- * Standard tasks use Jira Original Estimate. Subtasks use only positive local MD.
+ * Tasks and subtasks use Jira Original Estimate. Epics use the Jira MD field.
  * Parents with subtasks are excluded before filtering dates, estimates or assignees.
  *
  * Start priority is local Start, Jira Target Start, then First Time In Progress for
@@ -106,6 +106,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         }
         InitiativeIndex initiatives = InitiativeIndex.of(indexedIssues,
                 jiraProperties.fieldEpicLink(), jiraProperties.fieldParentMilestone());
+        Map<String, List<String>> prjTaskLabelsByIssue = prjTaskLabelsByIssue(indexedIssues);
         List<GanttTask> result = new ArrayList<>();
         List<UnplannedTask> unplanned = new ArrayList<>();
         Set<String> parentKeys = TaskHierarchy.parentKeys(issues);
@@ -133,6 +134,7 @@ public class JiraGanttDataProvider implements GanttDataProvider {
             }
             draft.epicKey = initiatives.resolveEpic(draft.key);
             draft.milestoneKey = initiatives.resolveMilestone(draft.key);
+            draft.prjTaskLabels = resolvePrjTaskLabels(issue, draft.epicKey, prjTaskLabelsByIssue);
             Predicate<LocalDate> blocked = RoadmapSnapshot.calendar(absences, draft.member.username());
             GanttTask task = draft.toTask(draft.actualStartDate, draft.actualStartDate, draft.actualSource, blocked);
             result.add(task);
@@ -181,7 +183,8 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         }
         String summary = fields.summary() == null ? issue.key() : fields.summary();
         String status = fields.status() == null ? null : fields.status().name();
-        return GanttTask.createEpic(issue.key(), summary, start, end, source, status);
+        Double md = EffortEstimates.epicMd(fields, jiraProperties.fieldEffortEstimate());
+        return GanttTask.createEpic(issue.key(), summary, start, end, source, status, md == null ? 0 : md);
     }
 
     /**
@@ -316,7 +319,6 @@ public class JiraGanttDataProvider implements GanttDataProvider {
                 draft.schedule == null ? null : draft.schedule.localStack(), fields.labels(), member.role());
         draft.stack = stackResolution.stack();
         draft.stackSource = stackResolution.source();
-        draft.prjTaskLabels = prjTaskLabels(fields.labels());
         draft.parentKey = fields.parent() != null ? fields.parent().key() : null;
 
         resolveActualStart(draft, fields);
@@ -324,10 +326,9 @@ public class JiraGanttDataProvider implements GanttDataProvider {
         return draft;
     }
 
-    /** Standard tasks use Jira Original Estimate; subtasks use local effort only. */
+    /** Tasks and subtasks use their own Jira Original Estimate. */
     private boolean resolveEffort(Draft draft, JiraIssueDto.Fields fields) {
-        Double estimate = EffortEstimates.resolve(fields,
-                draft.schedule == null ? null : draft.schedule.effortMd());
+        Double estimate = EffortEstimates.jiraMd(fields);
         if (estimate == null) return false;
         draft.md = estimate;
         return true;
@@ -368,6 +369,32 @@ public class JiraGanttDataProvider implements GanttDataProvider {
                 .filter(label -> label != null && label.replaceAll("[^A-Za-z0-9]", "")
                         .toLowerCase(java.util.Locale.ROOT).contains("prjtask"))
                 .toList();
+    }
+
+    /**
+     * A PRJtask belongs to the leaf when present there. Otherwise it is inherited from the
+     * immediate Jira parent, then from the resolved Epic. An empty result deliberately means
+     * there is no reference at any of those three levels.
+     */
+    private List<String> resolvePrjTaskLabels(JiraIssueDto issue, String epicKey,
+                                              Map<String, List<String>> labelsByIssue) {
+        List<String> own = labelsByIssue.getOrDefault(issue.key(), List.of());
+        if (!own.isEmpty()) return own;
+        JiraIssueDto.Fields fields = issue.fields();
+        String parentKey = fields.parent() == null ? null : fields.parent().key();
+        List<String> parent = parentKey == null ? List.of() : labelsByIssue.getOrDefault(parentKey, List.of());
+        if (!parent.isEmpty()) return parent;
+        return epicKey == null ? List.of() : labelsByIssue.getOrDefault(epicKey, List.of());
+    }
+
+    private Map<String, List<String>> prjTaskLabelsByIssue(List<JiraIssueDto> issues) {
+        Map<String, List<String>> result = new HashMap<>();
+        for (JiraIssueDto issue : issues) {
+            if (issue != null && issue.key() != null && issue.fields() != null) {
+                result.put(issue.key(), prjTaskLabels(issue.fields().labels()));
+            }
+        }
+        return result;
     }
 
     private LocalDate parseDate(String raw) {

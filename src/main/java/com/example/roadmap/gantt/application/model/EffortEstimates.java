@@ -12,17 +12,24 @@ public final class EffortEstimates {
         return fields.issuetype() != null && (fields.issuetype().subtask() || "Sub-task".equalsIgnoreCase(fields.issuetype().name()));
     }
 
+    /** Tasks and subtasks use their own Time Tracking Original Estimate. */
     public static Double jiraMd(JiraIssueDto.Fields fields) {
-        if (isSubtask(fields)) return null;
         var tracking = fields.timetracking();
         return tracking == null || tracking.originalEstimateSeconds() == null
                 || tracking.originalEstimateSeconds() <= 0
                 ? null : tracking.originalEstimateSeconds() / SECONDS_PER_MD;
     }
 
-    public static Double resolve(JiraIssueDto.Fields fields, Double localMd) {
-        if (!isSubtask(fields)) return jiraMd(fields);
-        return localMd != null && Double.isFinite(localMd) && localMd > 0 ? localMd : null;
+    /** Epics use only the configured Jira MD field; no Time Tracking fallback. */
+    public static Double epicMd(JiraIssueDto.Fields fields, String effortField) {
+        String raw = fields.customField(effortField);
+        if (raw == null || raw.isBlank()) return null;
+        try {
+            double md = Double.parseDouble(raw.trim());
+            return Double.isFinite(md) && md > 0 ? md : null;
+        } catch (NumberFormatException e) {
+            return null;
+        }
     }
 
 }

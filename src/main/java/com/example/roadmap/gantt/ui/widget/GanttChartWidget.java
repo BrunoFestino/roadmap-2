@@ -323,6 +323,9 @@ public class GanttChartWidget extends Div {
                 + "\nStart Date: " + DAY_MONTH.format(placed.task().start())
                 + "\nEnd Date: " + DAY_MONTH.format(placed.task().end())
                 + (placed.task().isEpic() ? "\nPlanned initiative duration"
+                + "\nJira MD estimate: " + (placed.task().md() > 0
+                ? formatMd(placed.task().md()) + " MD" : "Not estimated")
+                + "\nDoes not consume person capacity"
                 : (placed.task().hasCalendarWindow() ? "" : " (no planned window: productive-capacity fallback)")
                 + "\nOriginal effort: "
                 + formatMd(placed.task().md()) + " MD ("
@@ -330,8 +333,7 @@ public class GanttChartWidget extends Div {
                 + "\nWorkload and availability: see the weekly breakdown"
                 + "\nAssignee: " + placed.task().assignee().name()
                 + "\nRole: " + placed.task().assignee().role().label()
-                + (placed.task().prjTaskLabels().isEmpty() ? ""
-                : "\nPRJtask: " + String.join(", ", placed.task().prjTaskLabels()))
+                + prjTaskTooltip(placed.task())
                 + "\nEpic: " + (placed.task().missingEpic() ? "No Epic" : placed.task().effectiveEpicKey())
                 + "\nMilestone: " + (placed.task().effectiveMilestoneKey() == null
                 ? "No Milestone" : placed.task().effectiveMilestoneKey()))
@@ -366,6 +368,13 @@ public class GanttChartWidget extends Div {
         wrap.add(label);
 
         return wrap;
+    }
+
+    private String prjTaskTooltip(GanttTask task) {
+        if (!task.prjTaskLabels().isEmpty()) {
+            return "\nPRJtask: " + String.join(", ", task.prjTaskLabels());
+        }
+        return "\nPRJtask: No PRJtask found";
     }
 
     /**

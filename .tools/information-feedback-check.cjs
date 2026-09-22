@@ -32,9 +32,9 @@ async function main() {
       await page.getByRole('option',{name:'Subtask',exact:true}).click();
       await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('TEST-2111');
       await page.getByText('Validate Face ID and fingerprint',{exact:true}).click();
-      await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.disabled===false);
-      const effort = page.getByRole('spinbutton',{name:'Local effort (MD)',exact:true});
-      assert.equal(await effort.isEnabled(),true);
+      await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.value==='2');
+      const effort = page.getByRole('spinbutton',{name:'Jira estimate (MD)',exact:true});
+      assert.equal(await effort.isEditable(),false);
       assert.equal(Number(await effort.inputValue()),2);
       await page.getByRole('button',{name:'Save plan',exact:true}).click();
       await page.getByText('Plan saved for TEST-2111.',{exact:true}).waitFor();
@@ -44,9 +44,17 @@ async function main() {
       await page.getByRole('combobox',{name:'Show',exact:true}).click();
       await page.getByRole('option',{name:'Task',exact:true}).click();
       await page.getByText('Biometric authentication',{exact:true}).click();
-      await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.disabled===true
+      await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.readonly===true
         && document.querySelector('.selection-instruction')?.textContent.includes('TEST-2101'));
-      assert.equal(await effort.isEnabled(),false);
+      assert.equal(await effort.isEditable(),false);
+      assert.equal(Number(await effort.inputValue()),5);
+      await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('TEST-2000');
+      await page.getByRole('combobox',{name:'Show',exact:true}).click();
+      await page.getByRole('option',{name:'Epic',exact:true}).click();
+      await page.getByText('Mobile experience',{exact:true}).click();
+      await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.value==='12.5');
+      assert.equal(await effort.isEditable(),false);
+      assert.equal(Number(await effort.inputValue()),12.5);
     }
     await page.goto(base); await ready(page);
     const cells = await page.locator('.usage-person-week').evaluateAll(elements => elements.map(el=>({
@@ -83,25 +91,24 @@ async function main() {
       });
       await page.screenshot({path:path.join(output,'histogram.png')});
       const stateBefore = await (await fetch(base+'/test/state')).json();
-      const editSubtask = async value => {
+      const saveSubtask = async () => {
         await page.goto(base+'/gantt/planning'); await ready(page);
         await page.getByRole('textbox',{name:'Jira ID',exact:true}).fill('TEST-SUB-A');
-        await page.getByText('Explicit local estimate: 3 MD',{exact:true}).click();
-        await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.disabled===false);
-        await page.getByRole('spinbutton',{name:'Local effort (MD)',exact:true}).fill(value);
-        await page.getByRole('spinbutton',{name:'Local effort (MD)',exact:true}).press('Tab');
+        await page.getByText('Jira Original Estimate: 3 MD',{exact:true}).click();
+        await page.waitForFunction(()=>document.querySelector('vaadin-number-field')?.value==='3');
+        assert.equal(await page.getByRole('spinbutton',{name:'Jira estimate (MD)',exact:true}).isEditable(),false);
         await page.getByRole('button',{name:'Save plan',exact:true}).click();
         await page.getByText('Plan saved for TEST-SUB-A.',{exact:true}).waitFor();
       };
       const checkEffort = async a => {
         await page.goto(base); await ready(page);
         const rows = await page.locator('.usage-task-name').allTextContents();
-        assert.equal(rows.some(row=>row.includes('TEST-SUB-A')), a !== null, 'A has workload only with a local estimate');
+        assert.equal(rows.some(row=>row.includes('TEST-SUB-A')), a !== null, 'A has workload from Jira Original Estimate');
         if (a !== null) assert.ok(rows.some(row=>row.includes('TEST-SUB-A')&&row.includes('('+a+' MD)')), 'A workload '+a);
         await page.getByRole('tab', {name: /^Missing estimates/}).click();
         await ready(page);
         for (const key of ['TEST-SUB-B','TEST-SUB-C']) {
-          assert.equal(rows.some(row=>row.includes(key)), false, key+' has no local estimate');
+          assert.equal(rows.some(row=>row.includes(key)), false, key+' has no Jira Original Estimate');
           assert.ok((await page.locator('#roadmap-unplanned').innerText()).includes(key));
         }
         assert.equal(rows.some(row=>row.includes('TEST-PARENT')),false);
@@ -113,22 +120,15 @@ async function main() {
         if (a !== null) assert.ok(bars.some(text => text.includes('TEST-SUB-A\n') && text.includes('Original effort: ' + a + ' MD')));
         if (a === null) assert.ok((await page.locator('#roadmap-unplanned').innerText()).includes('TEST-SUB-A'));
       };
-      try {
-        await checkEffort('3');
-        await editSubtask('4');
-        await checkEffort('4');
-        await editSubtask('');
-        await checkEffort(null);
-      } finally {
-        await editSubtask('3');
-      }
+      await checkEffort('3');
+      await saveSubtask();
       await checkEffort('3');
       assert.deepEqual(await (await fetch(base+'/test/state')).json(),stateBefore);
       await page.goto(base + '/gantt/planning'); await ready(page);
       await page.getByRole('textbox', {name:'Jira ID',exact:true}).fill('TEST-PARENT');
       await page.waitForFunction(() => !document.querySelector('.planning-grid')?.textContent.includes('TEST-SUB-A'));
       assert.equal(await page.getByRole('link', {name:/^Open TEST-PARENT in Jira:/}).count(), 0);
-      console.log('PASS: parents excluded, only local effort counted, clearing estimate adds no workload, fixture restored.');
+      console.log('PASS: parents excluded, Jira estimates displayed read-only, saving dates preserves effort.');
       await page.goto(base+'/information'); await ready(page);
       const text = await page.locator('main, .information-page').last().innerText();
       assert.ok(text.includes('Subtasks'));

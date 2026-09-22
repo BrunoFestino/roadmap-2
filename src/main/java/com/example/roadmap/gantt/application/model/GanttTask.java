@@ -39,7 +39,7 @@ import java.util.function.Predicate;
  * @param actualStartDate   real start date read from Jira, {@code null} if Jira has none
  * @param plannedStartDate  this roadmap's own calculated start date (always present)
  * @param startDateSource   which tier ultimately produced {@link #displayStartDate()}
- * @param md                effort estimate in man-days (positive for executable work and zero for an Epic)
+ * @param md                effort estimate in man-days (zero for an Epic with no valid MD estimate)
  * @param status            Jira workflow status, may be {@code null}
  * @param plannedEndDate    end of the calendar commitment; when the database schedule has no end
  *                          date this falls back to full dedication, i.e.
@@ -51,11 +51,8 @@ import java.util.function.Predicate;
  *                          reached, which paints the task in {@link EpicPalette#UNASSIGNED}
  * @param milestoneKey      key of the Parent Milestone configured in Jira; when present it
  *                          has visual priority over the Epic
- * @param parentKey         key of this issue's Jira parent, populated only when
- *                          {@code issueType} is the literal "Sub-task" type; used by the
- *                          workload report to discount a sub-task's effort from its parent's
- *                          load instead of counting both. {@code null} for every other issue
- *                          type, and never used to influence dates or the Gantt.
+ * @param parentKey         key of this issue's Jira parent; used to exclude parent tasks
+ *                          with subtasks so only the subtasks contribute workload
  * @param stack             effective stack used to place the task in the role/stack roadmap
  * @param stackSource       source that supplied the effective stack
  * @param prjTaskLabels     Jira labels identifying PRJ tasks, shown in the roadmap tooltip
@@ -181,11 +178,16 @@ public record GanttTask(
 
     public static GanttTask createEpic(String key, String summary, LocalDate startDate,
                                        LocalDate endDate, StartDateSource source, String status) {
+        return createEpic(key, summary, startDate, endDate, source, status, 0);
+    }
+
+    public static GanttTask createEpic(String key, String summary, LocalDate startDate,
+                                       LocalDate endDate, StartDateSource source, String status, double md) {
         if (startDate == null || endDate == null || endDate.isBefore(startDate)) {
             throw new IllegalArgumentException("Epic requires a valid planned date range");
         }
         return new GanttTask(key, summary, "Epic", null, startDate, startDate, source,
-                0, status, endDate, true, key, null, null, 0L,
+                md, status, endDate, true, key, null, null, 0L,
                 TaskStack.UNCLASSIFIED, TaskStackSource.NONE, List.of());
     }
 

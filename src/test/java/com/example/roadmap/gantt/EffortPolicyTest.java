@@ -25,17 +25,32 @@ class EffortPolicyTest {
     }
 
     @Test void tasksUseOnlyOriginalEstimateAndKeepDecimals() {
-        assertThat(EffortEstimates.resolve(fields("Task", 63360, 0), 7.0)).isEqualTo(2.2);
-        assertThat(EffortEstimates.resolve(fields("Task", null, 0), 7.0)).isNull();
-        assertThat(EffortEstimates.resolve(fields("Task", 0, 0), 7.0)).isNull();
+        assertThat(EffortEstimates.jiraMd(fields("Task", 63360, 0))).isEqualTo(2.2);
+        assertThat(EffortEstimates.jiraMd(fields("Task", null, 0))).isNull();
+        assertThat(EffortEstimates.jiraMd(fields("Task", 0, 0))).isNull();
     }
 
-    @Test void subtasksUseOnlyPositiveLocalEffort() {
-        var subtask = fields("Sub-task", 288000, 3600);
-        assertThat(EffortEstimates.jiraMd(subtask)).isNull();
-        assertThat(EffortEstimates.resolve(subtask, 1.25)).isEqualTo(1.25);
-        for (Double value : new Double[]{null, 0.0, -1.0, Double.NaN, Double.POSITIVE_INFINITY}) {
-            assertThat(EffortEstimates.resolve(subtask, value)).isNull();
+    @Test void subtasksUseOnlyPositiveOriginalEstimateAndKeepDecimals() {
+        assertThat(EffortEstimates.jiraMd(fields("Sub-task", 36000, 3600))).isEqualTo(1.25);
+        for (Integer value : new Integer[]{null, 0, -1}) {
+            assertThat(EffortEstimates.jiraMd(fields("Sub-task", value, 3600))).isNull();
+        }
+        var missingTracking = fields("Sub-task", null, 0);
+        missingTracking.setTimetracking(null);
+        assertThat(EffortEstimates.jiraMd(missingTracking)).isNull();
+    }
+
+    @Test void epicsUseOnlyTheConfiguredMdField() {
+        var epic = fields("Epic", 288000, 3600);
+        String configuredField = "customfield_9123";
+        assertThat(EffortEstimates.epicMd(epic, configuredField)).isNull();
+        epic.setAdditionalField(configuredField, 12.5);
+        assertThat(EffortEstimates.epicMd(epic, configuredField)).isEqualTo(12.5);
+        epic.setAdditionalField(configuredField, " 1.125 ");
+        assertThat(EffortEstimates.epicMd(epic, configuredField)).isEqualTo(1.125);
+        for (Object value : new Object[]{null, "", " ", 0, -1, "NaN", "Infinity", "invalid"}) {
+            epic.setAdditionalField(configuredField, value);
+            assertThat(EffortEstimates.epicMd(epic, configuredField)).isNull();
         }
     }
 
@@ -44,21 +59,22 @@ class EffortPolicyTest {
         var schedules = mock(TargetStartRepository.class);
         var day = LocalDate.of(2026, 9, 14);
         when(schedules.findSchedules()).thenReturn(Map.of(
-                "SUB-LOCAL", new TargetStartRepository.Schedule(day, day.plusDays(4), 1.25),
-                "TASK-LOCAL", new TargetStartRepository.Schedule(day, day.plusDays(4), 7.0)));
+                "SUB-PLANNED", new TargetStartRepository.Schedule(day, day.plusDays(4), null),
+                "TASK-PLANNED", new TargetStartRepository.Schedule(day, day.plusDays(4), null)));
         when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList())).thenReturn(new JiraSearchResponseDto(List.of(
-                new JiraIssueDto("SUB-LOCAL", fields("Sub-task", 288000, 0)),
+                new JiraIssueDto("SUB-PLANNED", fields("Sub-task", 36000, 0)),
                 new JiraIssueDto("SUB-JIRA", fields("Sub-task", 288000, 0)),
-                new JiraIssueDto("TASK-LOCAL", fields("Task", null, 0)),
+                new JiraIssueDto("SUB-MISSING", fields("Sub-task", null, 0)),
+                new JiraIssueDto("TASK-PLANNED", fields("Task", null, 0)),
                 new JiraIssueDto("TASK-JIRA", fields("Task", 63360, 0)))));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         var snapshot = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
-        assertThat(snapshot.tasks()).extracting(GanttTask::key).containsExactly("SUB-LOCAL", "TASK-JIRA");
-        assertThat(snapshot.tasks()).extracting(GanttTask::md).containsExactly(1.25, 2.2);
+        assertThat(snapshot.tasks()).extracting(GanttTask::key).containsExactly("SUB-PLANNED", "SUB-JIRA", "TASK-JIRA");
+        assertThat(snapshot.tasks()).extracting(GanttTask::md).containsExactly(1.25, 10.0, 2.2);
         assertThat(snapshot.unplannedTasks()).extracting(UnplannedTask::taskKey)
-                .containsExactly("SUB-JIRA", "TASK-LOCAL");
+                .containsExactly("SUB-MISSING", "TASK-PLANNED");
     }
 
     @Test void trafficLightsHaveStrictDailyAndWeeklyBoundaries() {
@@ -91,21 +107,21 @@ class EffortPolicyTest {
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         var result = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
-        verify(schedules, never()).saveSchedule(anyString(), any(), any(), any(), any());
+        verify(schedules, never()).saveSchedule(anyString(), any(), any(), any());
         return result;
     }
 
-    @Test void onlyLocalChildEffortCountsAndStandaloneTasksKeepTheirOwnEstimate() {
+    @Test void onlyJiraChildEffortCountsAndStandaloneTasksKeepTheirOwnEstimate() {
         var day = LocalDate.of(2026, 9, 14);
         for (int parentSeconds : new int[]{0, 28800, 2880000}) {
             var data = snapshot(List.of(
                     new JiraIssueDto("PARENT", fields("Task", parentSeconds, 288000)),
-                    new JiraIssueDto("A", fields("Sub-task", 288000, 0)),
-                    new JiraIssueDto("B", fields("Sub-task", 288000, 0)),
-                    new JiraIssueDto("C", fields("Sub-task", 288000, 0)),
+                    new JiraIssueDto("A", fields("Sub-task", 86400, 0)),
+                    new JiraIssueDto("B", fields("Sub-task", null, 0)),
+                    new JiraIssueDto("C", fields("Sub-task", 0, 0)),
                     new JiraIssueDto("SINGLE", fields("Task", 57600, 0))), Map.of(
-                    "A", new TargetStartRepository.Schedule(day, day.plusDays(11), 3.0),
-                    "SINGLE", new TargetStartRepository.Schedule(day, day.plusDays(11), 99.0)));
+                    "A", new TargetStartRepository.Schedule(day, day.plusDays(11), null),
+                    "SINGLE", new TargetStartRepository.Schedule(day, day.plusDays(11), null)));
             assertThat(data.tasks()).extracting(GanttTask::key).containsExactly("A", "SINGLE");
             assertThat(data.tasks()).extracting(GanttTask::md).containsExactly(3.0, 2.0);
             assertThat(data.unplannedTasks()).extracting(UnplannedTask::taskKey).containsExactly("B", "C");
@@ -117,12 +133,13 @@ class EffortPolicyTest {
     }
 
     @Test void unestimatedAndUndatedSubtasksNeverReviveTheParent() {
-        var child = fields("Sub-task", 288000, 0);
+        var child = fields("Sub-task", null, 0);
         child.setAdditionalField(PROPS.fieldTargetStart(), null);
-        for (Double estimate : new Double[]{null, 0.0, -1.0, 3.0}) {
+        for (Integer estimate : new Integer[]{null, 0, -1, 86400}) {
+            child.setTimetracking(new JiraIssueDto.TimeTracking(estimate, 0));
             var data = snapshot(List.of(new JiraIssueDto("PARENT", fields("Task", 288000, 0)),
                     new JiraIssueDto("CHILD", child)), Map.of(
-                    "CHILD", new TargetStartRepository.Schedule(null, null, estimate)));
+                    "CHILD", new TargetStartRepository.Schedule(null, null, null)));
             assertThat(data.tasks()).isEmpty();
             assertThat(data.unplannedTasks()).singleElement().satisfies(task -> {
                 assertThat(task.taskKey()).isEqualTo("CHILD");
@@ -152,16 +169,91 @@ class EffortPolicyTest {
         }
     }
 
-    @Test void customJiraSubtaskTypesUseLocalEffortAndExcludeParents() {
-        var child = fields("Technical subtask", 288000, 0);
+    @Test void customJiraSubtaskTypesUseTimeTrackingAndExcludeParents() {
+        var child = fields("Technical subtask", 36000, 0);
         child.setIssuetype(new JiraIssueDto.IssueType("Technical subtask", true));
         var day = LocalDate.of(2026, 9, 14);
         var data = snapshot(List.of(new JiraIssueDto("PARENT", fields("Task", 288000, 0)),
                 new JiraIssueDto("CHILD", child)), Map.of(
-                "CHILD", new TargetStartRepository.Schedule(day, day.plusDays(4), 1.25)));
+                "CHILD", new TargetStartRepository.Schedule(day, day.plusDays(4), null)));
         assertThat(data.tasks()).singleElement().satisfies(task -> {
             assertThat(task.key()).isEqualTo("CHILD");
             assertThat(task.md()).isEqualTo(1.25);
         });
+    }
+
+    @Test void allChildEstimatesAreSummedAndWorklogsReduceOnlyTheirOwnRemainingWork() {
+        var day = LocalDate.of(2026, 9, 14);
+        var data = snapshot(List.of(
+                new JiraIssueDto("PARENT", fields("Task", 2880000, 2880000)),
+                new JiraIssueDto("A", fields("Sub-task", 86400, 14400)),
+                new JiraIssueDto("B", fields("Sub-task", 115200, 3600))), Map.of(
+                "A", new TargetStartRepository.Schedule(day, day.plusDays(11), null),
+                "B", new TargetStartRepository.Schedule(day, day.plusDays(11), null)));
+        assertThat(data.tasks()).extracting(GanttTask::key).containsExactly("A", "B");
+        assertThat(data.tasks().stream().mapToDouble(GanttTask::md).sum()).isEqualTo(7);
+        assertThat(data.tasks()).extracting(GanttTask::remainingWorkHours).containsExactly(20.0, 31.0);
+        var report = new BuildWorkloadReportUseCase(null, null, PROPS, ROSTER).build(data, day);
+        assertThat(person(report).totalAssignedHours()).isCloseTo(56, within(1e-6));
+    }
+
+    @Test void providerKeepsEpicMdWithoutAddingItToPersonWorkload() {
+        var jira = mock(JiraClient.class);
+        var epic = fields("Epic", 288000, 0);
+        epic.setAssignee(null);
+        epic.setDuedate("2026-09-25");
+        epic.setAdditionalField(PROPS.fieldEffortEstimate(), "12.5");
+        var noEstimate = fields("Epic", 288000, 0);
+        noEstimate.setDuedate("2026-09-25");
+        noEstimate.setAdditionalField(PROPS.fieldEffortEstimate(), null);
+        when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList())).thenReturn(
+                new JiraSearchResponseDto(List.of(new JiraIssueDto("TASK", fields("Task", 57600, 0)))));
+        when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of(
+                new JiraIssueDto("EPIC", epic), new JiraIssueDto("EPIC-MISSING", noEstimate))));
+        when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
+        var data = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+                mock(TargetStartRepository.class), ROSTER, STACK_RESOLVER).snapshot(List.of());
+        assertThat(data.tasks()).extracting(GanttTask::md).containsExactly(2.0, 12.5, 0.0);
+        var report = new BuildWorkloadReportUseCase(null, null, PROPS, ROSTER)
+                .build(data, LocalDate.of(2026, 9, 14));
+        assertThat(person(report).totalAssignedHours()).isCloseTo(16, within(1e-6));
+    }
+
+    @Test void prjTaskIsTakenFromTheTaskThenParentThenEpicOrLeftEmpty() {
+        var jira = mock(JiraClient.class);
+        var parent = issueWithPrjTask("PARENT", "Task", "PARENT", List.of("PRJtask-parent"));
+        parent.fields().setSubtasks(List.of(new JiraIssueDto.Parent("CHILD-PARENT")));
+        var childFromParent = issueWithPrjTask("CHILD-PARENT", "Sub-task", "PARENT", List.of());
+        var own = issueWithPrjTask("OWN", "Task", null, List.of("PRJtask-own"));
+        var childFromEpic = issueWithPrjTask("CHILD-EPIC", "Task", null, List.of());
+        childFromEpic.fields().setAdditionalField(PROPS.fieldEpicLink(), "EPIC");
+        var none = issueWithPrjTask("NONE", "Task", null, List.of());
+        var epic = issueWithPrjTask("EPIC", "Epic", null, List.of("PRJtask-epic"));
+        epic.fields().setDuedate("2026-09-25");
+        when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList())).thenReturn(
+                new JiraSearchResponseDto(List.of(parent, childFromParent, own, childFromEpic, none)));
+        when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of(epic)));
+        when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
+        var schedules = mock(TargetStartRepository.class);
+        when(schedules.findSchedules()).thenReturn(Map.of());
+
+        var snapshot = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+                schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
+
+        assertThat(snapshot.tasks()).filteredOn(task -> !task.isEpic())
+                .extracting(GanttTask::key, GanttTask::prjTaskLabels)
+                .containsExactly(
+                        tuple("CHILD-PARENT", List.of("PRJtask-parent")),
+                        tuple("OWN", List.of("PRJtask-own")),
+                        tuple("CHILD-EPIC", List.of("PRJtask-epic")),
+                        tuple("NONE", List.of()));
+    }
+
+    private JiraIssueDto issueWithPrjTask(String key, String type, String parentKey, List<String> labels) {
+        var fields = fields(type, 28800, 0);
+        fields.setSummary(key);
+        fields.setParent(parentKey == null ? null : new JiraIssueDto.Parent(parentKey));
+        fields.setLabels(labels);
+        return new JiraIssueDto(key, fields);
     }
 }

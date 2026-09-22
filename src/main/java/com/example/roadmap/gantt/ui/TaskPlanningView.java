@@ -49,7 +49,7 @@ import java.util.function.Predicate;
  * Lets roadmap owners plan the dates of open example Jira tasks without editing files directly.
  */
 @Route(value = "gantt/planning", layout = MainLayout.class)
-@PageTitle("Plan tasks")
+@PageTitle("Task planning")
 public class TaskPlanningView extends VerticalLayout {
 
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yyyy");
@@ -65,7 +65,7 @@ public class TaskPlanningView extends VerticalLayout {
     private final Span selectedTask = new Span("Select an Epic, task or subtask from the table.");
     private final DatePicker startField = new DatePicker("Start");
     private final DatePicker endField = new DatePicker("End");
-    private final NumberField effortField = new NumberField("Local effort (MD)");
+    private final NumberField effortField = new NumberField("Jira estimate (MD)");
     private final TextField jiraStackField = new TextField("Label Jira");
     private final ComboBox<TaskStack> localStackField = new ComboBox<>("Local stack");
     private final TextField roleStackField = new TextField("Person fallback");
@@ -104,7 +104,7 @@ public class TaskPlanningView extends VerticalLayout {
     }
 
     private Component title() {
-        H1 title = new H1("Task and initiative planning");
+        H1 title = new H1("Task planning");
         title.addClassName("page-title");
         title.getStyle().set("color", GanttStyle.PRIMARY_900).set("font-weight", "700");
         return title;
@@ -112,9 +112,10 @@ public class TaskPlanningView extends VerticalLayout {
 
     private Component subtitle() {
         Span subtitle = new Span("Plan open Epics, tasks and subtasks. "
-                + "Tasks use Jira Time Tracking Original Estimate; subtasks use local effort only. "
+                + "This screen defines dates and stack; Team capacity & load shows the resulting weekly allocation. "
+                + "Tasks and subtasks use Jira Time Tracking Original Estimate; parent tasks with subtasks are excluded. "
                 + "The local stack is optional and takes priority over Jira and the person's role. "
-                + "Epics only define duration and never consume capacity. Milestones use only "
+                + "Epics use the Jira MD field and never consume person capacity. Milestones use only "
                 + "their Jira Delivery Date.");
         subtitle.addClassName("page-subtitle");
         subtitle.getStyle().set("color", GanttStyle.MUTED).set("font-size", "14px");
@@ -148,9 +149,10 @@ public class TaskPlanningView extends VerticalLayout {
         grid.addComponentColumn(plan -> tableText(formatWindow(plan))).setHeader("Start - End")
                 .setWidth("225px").setFlexGrow(0);
         grid.addComponentColumn(plan -> tableText(formatMd(plan.jiraEffortMd())))
-                .setHeader("Jira estimate").setWidth("135px").setFlexGrow(0);
-        grid.addComponentColumn(plan -> tableText(formatMd(plan.kind() == PlanningKind.SUBTASK ? plan.effortMd() : null)))
-                .setHeader("Local MD").setWidth("115px").setFlexGrow(0);
+                .setHeader("Estimate (MD)").setWidth("145px").setFlexGrow(0);
+        grid.addComponentColumn(plan -> tableText(plan.kind() == PlanningKind.EPIC
+                        ? "Jira MD field" : "Jira Original Estimate"))
+                .setHeader("Estimate source").setWidth("195px").setFlexGrow(0);
         grid.addComponentColumn(plan -> tableText(plan.role() == null ? "-" : plan.role().label()))
                 .setHeader("Role").setWidth("100px").setFlexGrow(0);
         grid.addComponentColumn(plan -> tableText(plan.status())).setHeader("Status")
@@ -213,11 +215,8 @@ public class TaskPlanningView extends VerticalLayout {
         endField.setRequiredIndicatorVisible(true);
         startField.setEnabled(false);
         endField.setEnabled(false);
-        effortField.setEnabled(false);
-        effortField.setMin(0.1);
-        effortField.setStep(0.1);
-        effortField.setStepButtonsVisible(true);
-        effortField.setHelperText("Subtasks only. A positive local estimate is required to count workload.");
+        effortField.setReadOnly(true);
+        effortField.setHelperText("Update estimates in Jira. 1 MD = 8 hours.");
         saveButton.setEnabled(false);
         saveButton.addThemeVariants(ButtonVariant.LUMO_PRIMARY);
         saveButton.addClassName("planning-save-button");
@@ -313,7 +312,7 @@ public class TaskPlanningView extends VerticalLayout {
                 fields.summary() == null ? issue.key() : fields.summary(),
                 member.name(), member.username(), member.role(), status,
                 effectiveStart, schedule == null ? null : schedule.endDate(),
-                EffortEstimates.jiraMd(fields), schedule == null ? null : schedule.effortMd(),
+                EffortEstimates.jiraMd(fields),
                 fields.labels(), localStack);
     }
 
@@ -335,8 +334,8 @@ public class TaskPlanningView extends VerticalLayout {
         }
         return new TaskPlan(PlanningKind.EPIC, issue.key(),
                 fields.summary() == null ? issue.key() : fields.summary(),
-                "Team", null, null, status, start, end, null,
-                null, List.of(), null);
+                "Team", null, null, status, start, end,
+                EffortEstimates.epicMd(fields, jiraProperties.fieldEffortEstimate()), List.of(), null);
     }
 
     private void refreshAssigneeFilter() {
@@ -382,13 +381,13 @@ public class TaskPlanningView extends VerticalLayout {
         boolean epicSelected = taskSelected && plan.kind() == PlanningKind.EPIC;
         startField.setEnabled(taskSelected);
         endField.setEnabled(taskSelected);
-        boolean subtaskSelected = taskSelected && plan.kind() == PlanningKind.SUBTASK;
-        effortField.setEnabled(subtaskSelected);
         localStackField.setEnabled(taskSelected && !epicSelected);
         saveButton.setEnabled(taskSelected);
         startField.setValue(taskSelected ? plan.startDate() : null);
         endField.setValue(taskSelected ? plan.endDate() : null);
-        effortField.setValue(subtaskSelected ? plan.effortMd() : null);
+        effortField.setValue(taskSelected ? plan.jiraEffortMd() : null);
+        effortField.setHelperText(epicSelected ? "Source: Jira MD field. Update the epic estimate in Jira."
+                : "Source: Jira Time Tracking Original Estimate. 1 MD = 8 hours.");
         startField.setInvalid(false);
         endField.setInvalid(false);
         effortField.setInvalid(false);
@@ -404,7 +403,7 @@ public class TaskPlanningView extends VerticalLayout {
         } else if (epicSelected) {
             selectedTask.setText(plan.issueKey() + " · " + plan.summary()
                     + ": define the Epic duration. "
-                    + "It does not require an assignee, stack, or effort.");
+                    + "Its effort comes from the Jira MD field. No assignee or stack is required.");
         } else {
             selectedTask.setText(plan.issueKey() + " · " + plan.summary()
                     + ": enter or reschedule the dates and, if needed, "
@@ -444,20 +443,12 @@ public class TaskPlanningView extends VerticalLayout {
         LocalDate startDate = startField.getValue();
         LocalDate endDate = endField.getValue();
         boolean epic = selected.kind() == PlanningKind.EPIC;
-        // Preserve legacy values on standard tasks without using them as estimates.
-        Double effortMd = epic ? null : selected.kind() == PlanningKind.SUBTASK
-                ? effortField.getValue() : selected.effortMd();
         if (startDate == null || endDate == null) {
             showError("Enter both start and end dates.");
             return;
         }
         if (endDate.isBefore(startDate)) {
             showError("The end date cannot be earlier than the start date.");
-            return;
-        }
-        if (selected.kind() == PlanningKind.SUBTASK && effortMd != null
-                && (!Double.isFinite(effortMd) || effortMd <= 0)) {
-            showError("Local effort must be greater than 0 MD.");
             return;
         }
         String key = selected.issueKey();
@@ -472,7 +463,7 @@ public class TaskPlanningView extends VerticalLayout {
                 }
             }
             scheduleRepository.saveSchedule(key, startDate, endDate,
-                    epic ? null : localStackField.getValue(), effortMd);
+                    epic ? null : localStackField.getValue());
         } catch (RuntimeException e) {
             LOG.error("Saving schedule failed for {}", key, e);
             showError("The dates for " + key + " were not saved. The form was preserved; you can retry.");
@@ -547,7 +538,7 @@ public class TaskPlanningView extends VerticalLayout {
 
     private record TaskPlan(PlanningKind kind, String issueKey, String summary, String assignee, String username,
                             Role role, String status,
-                            LocalDate startDate, LocalDate endDate, Double jiraEffortMd, Double effortMd,
+                            LocalDate startDate, LocalDate endDate, Double jiraEffortMd,
                             List<String> jiraLabels, TaskStack localStack) {
     }
 }

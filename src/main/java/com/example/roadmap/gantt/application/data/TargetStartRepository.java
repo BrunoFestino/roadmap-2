@@ -34,14 +34,13 @@ public class TargetStartRepository {
             return Optional.empty();
         }
         return jdbcTemplate.query("""
-                        SELECT start_date, end_date, effort_md, stack_local
+                        SELECT start_date, end_date, stack_local
                         FROM roadmap_schedule
                         WHERE issue_key = ?
                         """,
                 (rs, rowNum) -> new Schedule(
                         rs.getObject("start_date", LocalDate.class),
                         rs.getObject("end_date", LocalDate.class),
-                        nullableDouble(rs.getBigDecimal("effort_md")),
                         parseStack(rs.getString("stack_local"))),
                 issueKey).stream().findFirst();
     }
@@ -50,7 +49,7 @@ public class TargetStartRepository {
     public Map<String, Schedule> findSchedules() {
         Map<String, Schedule> schedules = new LinkedHashMap<>();
         jdbcTemplate.query("""
-                        SELECT issue_key, start_date, end_date, effort_md, stack_local
+                        SELECT issue_key, start_date, end_date, stack_local
                         FROM roadmap_schedule
                         ORDER BY issue_key
                         """,
@@ -59,19 +58,17 @@ public class TargetStartRepository {
                         new Schedule(
                                 rs.getObject("start_date", LocalDate.class),
                                 rs.getObject("end_date", LocalDate.class),
-                                nullableDouble(rs.getBigDecimal("effort_md")),
                                 parseStack(rs.getString("stack_local")))));
         return schedules;
     }
 
     /**
-     * Creates or updates a task's planned date range while preserving effort and any local
+     * Creates or updates a task's planned date range while preserving any local
      * stack previously maintained for that task.
      */
     public void saveSchedule(String issueKey, LocalDate startDate, LocalDate endDate) {
         Schedule current = findScheduleByIssueKey(issueKey).orElse(null);
-        saveSchedule(issueKey, startDate, endDate, current == null ? null : current.localStack(),
-                current == null ? null : current.effortMd());
+        saveSchedule(issueKey, startDate, endDate, current == null ? null : current.localStack());
     }
 
     /**
@@ -79,16 +76,6 @@ public class TargetStartRepository {
      * that Jira, and then the assignee's role, determine the effective stack.
      */
     public void saveSchedule(String issueKey, LocalDate startDate, LocalDate endDate, TaskStack localStack) {
-        Double currentEffort = findScheduleByIssueKey(issueKey).map(Schedule::effortMd).orElse(null);
-        saveSchedule(issueKey, startDate, endDate, localStack, currentEffort);
-    }
-
-    /**
-     * Atomically stores the date window, optional local stack override and optional local effort.
-     * A null effort deliberately clears the local fallback so Jira remains the only source.
-     */
-    public void saveSchedule(String issueKey, LocalDate startDate, LocalDate endDate, TaskStack localStack,
-                             Double effortMd) {
         if (issueKey == null || issueKey.isBlank()) {
             throw new IllegalArgumentException("issueKey is required");
         }
@@ -101,30 +88,19 @@ public class TargetStartRepository {
         if (localStack != null && !localStack.selectable()) {
             throw new IllegalArgumentException("localStack must be one of the four selectable stacks");
         }
-        if (effortMd != null && effortMd <= 0) {
-            throw new IllegalArgumentException("effortMd must be positive when supplied");
-        }
         jdbcTemplate.update("""
-                        INSERT INTO roadmap_schedule (issue_key, start_date, end_date, stack_local, effort_md)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT INTO roadmap_schedule (issue_key, start_date, end_date, stack_local)
+                        VALUES (?, ?, ?, ?)
                         ON CONFLICT (issue_key) DO UPDATE
                         SET start_date = EXCLUDED.start_date,
                             end_date = EXCLUDED.end_date,
-                            stack_local = EXCLUDED.stack_local,
-                            effort_md = EXCLUDED.effort_md
+                            stack_local = EXCLUDED.stack_local
                         """,
-                issueKey.trim(), startDate, endDate, localStack == null ? null : localStack.name(), effortMd);
+                issueKey.trim(), startDate, endDate, localStack == null ? null : localStack.name());
     }
 
     /** A manually maintained schedule; endDate is optional for legacy target-start-only data. */
-    public record Schedule(LocalDate startDate, LocalDate endDate, Double effortMd, TaskStack localStack) {
-        public Schedule(LocalDate startDate, LocalDate endDate, Double effortMd) {
-            this(startDate, endDate, effortMd, null);
-        }
-    }
-
-    private static Double nullableDouble(java.math.BigDecimal value) {
-        return value == null ? null : value.doubleValue();
+    public record Schedule(LocalDate startDate, LocalDate endDate, TaskStack localStack) {
     }
 
     private static TaskStack parseStack(String value) {

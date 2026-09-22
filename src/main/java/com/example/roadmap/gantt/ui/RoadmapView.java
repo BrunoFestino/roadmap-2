@@ -94,7 +94,7 @@ public class RoadmapView extends VerticalLayout {
     private static final String SECTION_BY_PERSON = "roadmap-by-person";
     private static final String SECTION_UNPLANNED = "roadmap-unplanned";
     private static final List<SectionDestination> SECTION_DESTINATIONS = List.of(
-            new SectionDestination(SECTION_LOAD, "Workload"),
+            new SectionDestination(SECTION_LOAD, "Capacity & load"),
             new SectionDestination(SECTION_HISTOGRAM, "Histogram"),
             new SectionDestination(SECTION_BY_ROLE, "By role"),
             new SectionDestination(SECTION_BY_PERSON, "By person"),
@@ -442,8 +442,9 @@ public class RoadmapView extends VerticalLayout {
             content.add(usageLegend());
         }
 
-        return executiveSection(SECTION_LOAD, "Team workload",
-                "Assigned versus available hours by role, person, and week. Expand a person to inspect their tasks. "
+        return executiveSection(SECTION_LOAD, "Team capacity & load",
+                "The result of the plan: estimated effort distributed by role, person, and week, then compared with available hours. "
+                        + "Expand a person to see each task's total estimate, weekly share, and work still due. "
                         + "Effort is distributed and leveled within committed dates without assuming full dedication. "
                         + "Capacity uses 6 productive hours per business day and subtracts absences.",
                 scrollable(content));
@@ -926,6 +927,8 @@ public class RoadmapView extends VerticalLayout {
 
         legend.add(legendSwatch("#EAF2F6", "Task is active during this week"));
         legend.add(legendSwatch("#FCFCFD", "Outside its window"));
+        legend.add(legendText("Allocated this week", "the task's share of its total effort assigned to this week"));
+        legend.add(legendText("Remaining this week", "work left after Jira logged hours, placed on this week's remaining days"));
         legend.add(legendText("- no hours", "no hours assigned this week; review calendar and distribution"));
         return legend;
     }
@@ -951,9 +954,9 @@ public class RoadmapView extends VerticalLayout {
         Span window = new Span(formatShortDate(task.startDate()) + " → " + formatShortDate(task.endDate())
                 + " · " + Math.round(task.dedicationPct()) + "% dedication");
         window.getStyle().set("font-size", "10.5px").set("color", GanttStyle.MUTED);
-        Span effort = new Span("Workload effort " + formatHours(task.estimatedHours())
-                + " h (" + formatMd(task.md()) + " MD) · Jira " + formatHours(task.loggedHours())
-                + " h · Remaining " + formatHours(task.totalPendingHours()) + " h ("
+        Span effort = new Span("Total effort " + formatHours(task.estimatedHours())
+                + " h (" + formatMd(task.md()) + " MD) · Logged in Jira " + formatHours(task.loggedHours())
+                + " h · Total still due " + formatHours(task.totalPendingHours()) + " h ("
                 + formatMd(WorkContour.toMd(task.totalPendingHours())) + " MD)");
         effort.addClassName("usage-task-effort-equation");
 
@@ -983,9 +986,10 @@ public class RoadmapView extends VerticalLayout {
         boolean insideWindow = !task.startDate().isAfter(week.weekEnd())
                 && !task.endDate().isBefore(week.weekStart());
 
-        Span value = new Span(hours > 0 ? "Plan " + formatHours(hours) + " h" : insideWindow ? "Plan 0 h" : "");
+        Span value = new Span(hours > 0 ? "Allocated this week " + formatHours(hours) + " h"
+                : insideWindow ? "Allocated this week 0 h" : "");
         value.addClassName("usage-task-planned");
-        Span pendingValue = new Span("Remaining " + formatHours(pending) + " h"
+        Span pendingValue = new Span("Remaining this week " + formatHours(pending) + " h"
                 + " · " + formatMd(WorkContour.toMd(pending)) + " MD");
         pendingValue.addClassName("usage-task-pending");
 
@@ -1162,7 +1166,7 @@ public class RoadmapView extends VerticalLayout {
         if (total == 0) {
             content.add(emptyNote("All loaded tasks have both dates and estimates."));
         } else {
-            content.add(new RouterLink("Plan tasks", TaskPlanningView.class));
+            content.add(new RouterLink("Task planning", TaskPlanningView.class));
 
             Div noDatePanel = unplannedPanel(noDate,
                     "Tasks without a start date are excluded from the Gantt and capacity. Tasks with a start "
@@ -1170,8 +1174,7 @@ public class RoadmapView extends VerticalLayout {
                     "No tasks are missing dates.");
             Div noEstimatePanel = unplannedPanel(noEstimate,
                     "These tasks are excluded from the Gantt and capacity until estimated. "
-                            + "For tasks, enter Original Estimate in Jira Time Tracking. "
-                            + "For subtasks, enter Local effort in Plan tasks.",
+                            + "For tasks and subtasks, enter Original Estimate in Jira Time Tracking.",
                     "No tasks are missing estimates.");
             noEstimatePanel.setVisible(false);
 
