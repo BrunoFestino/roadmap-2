@@ -14,7 +14,11 @@ class InitiativeNamesTest {
     @Test void namesSurviveMissingEpicDatesAndClosedInitiativesAreLookedUpOnce() {
         var jira = mock(JiraClient.class);
         var schedules = mock(TargetStartRepository.class);
-        when(schedules.findSchedules()).thenReturn(Map.of());
+        var start = java.time.LocalDate.of(2026, 9, 14);
+        when(schedules.findSchedules()).thenReturn(Map.of(
+                "TASK-1", new TargetStartRepository.Schedule(start, start.plusDays(4), null),
+                "TASK-2", new TargetStartRepository.Schedule(start, start.plusDays(4), null),
+                "TASK-3", new TargetStartRepository.Schedule(start, start.plusDays(4), null)));
         var first = issue("TASK-1", "2026-09-14", "2");
         first.fields().setAdditionalField(PROPS.fieldEpicLink(), "EPIC-1");
         var second = issue("TASK-2", "2026-09-14", "3");

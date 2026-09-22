@@ -35,10 +35,9 @@ import java.util.function.Predicate;
  * Tasks and subtasks use Jira Original Estimate. Epics use the Jira MD field.
  * Parents with subtasks are excluded before filtering dates, estimates or assignees.
  *
- * Start priority is local Start, Jira Target Start, then First Time In Progress for
- * in-progress tasks. A local End commits the window; otherwise the fallback uses
- * enough available business days at six productive hours per day. Missing starts
- * and unresolved estimates appear under Needs attention.
+ * A task or subtask needs a local Target End to enter the Gantt. Start priority is
+ * local Start, Jira Target Start, then First Time In Progress for in-progress tasks.
+ * Missing local ends, starts and unresolved estimates appear under Needs attention.
  *
  * All views share the same leaf tasks and their own estimates. Jira is never modified.
  */
@@ -124,6 +123,13 @@ public class JiraGanttDataProvider implements GanttDataProvider {
                         draft.member.name(), draft.member.role().label(), draft.member.role().color(),
                         draft.status, draft.actualStartDate, null, 0, jiraUrl(draft.key),
                         UnplannedReason.NO_ESTIMATE));
+                continue;
+            }
+            if (draft.schedule == null || draft.schedule.endDate() == null) {
+                unplanned.add(new UnplannedTask(draft.key, draft.summary, draft.issueType,
+                        draft.member.name(), draft.member.role().label(), draft.member.role().color(),
+                        draft.status, draft.actualStartDate, null, draft.md, jiraUrl(draft.key),
+                        UnplannedReason.NO_DATE));
                 continue;
             }
             if (draft.actualStartDate == null) {

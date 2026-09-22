@@ -3,8 +3,8 @@ package com.example.roadmap.gantt.application.analytics;
 /** Why a task could not be fully placed on the roadmap and needs the team's attention. */
 public enum UnplannedReason {
 
-    /** No committed start, or a start with no end so the report had to assume 100% dedication. */
-    NO_DATE("Missing date"),
+    /** No local Target End, or no usable start date. */
+    NO_DATE("Missing local Target End"),
     /** No positive Jira Time Tracking Original Estimate for a task or subtask. */
     NO_ESTIMATE("Missing estimate");
 

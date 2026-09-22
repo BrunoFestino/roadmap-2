@@ -270,8 +270,9 @@ public class BuildWorkloadReportUseCase {
     }
 
     /**
-     * Tasks whose dedication had to be assumed because the database schedule has no end date for
-     * them. Ordered by owner and start date so the tray reads as a per-person to-do list.
+     * Legacy safeguard for tasks without a committed local end date. The provider normally
+     * excludes these before the workload is built. Ordered by owner and start date so the tray
+     * reads as a per-person to-do list.
      */
     private List<UnplannedTask> unplannedTasks(List<GanttTask> tasks) {
         return tasks.stream()

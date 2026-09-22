@@ -113,7 +113,7 @@ public class InformationView extends VerticalLayout {
                 "Effort and duration are independent. A longer window spreads the same work across more available days.",
                 rows("Start dates", "Local Start takes precedence over Jira Target Start. First Time In Progress is used only for a task currently In Progress. Sprint and creation dates do not supply a start.",
                         "Missing start", "The task appears in Needs attention and is excluded from the Gantt and dated workload.",
-                        "Start but no local End", "Example: 2 MD represents 16 h and needs a provisional three-day window at 6 productive hours per day. Weekends and absences are skipped. The task is included, but still listed under missing dates until a window is agreed.",
+                        "Missing local Target End", "The task appears in Needs attention and is excluded from the Gantt and workload. Jira dates never substitute for a local Target End.",
                         "Committed dates", "Local Start and End define the window, including both endpoints. Absences reduce usable days without moving End. Ordinary task due dates do not set this window; due dates position milestones and can supply an epic's end.",
                         "Final states", "Done, Cancelled, Resolved, Closed and Obsolete no longer add future task load. Blocked is not a final state."),
                 note("Keep dates realistic.", "A task whose entire window is past, or has no available days, has nowhere to distribute remaining work. The app does not automatically move it into a new window. Review dates before interpreting free capacity as a new commitment."));

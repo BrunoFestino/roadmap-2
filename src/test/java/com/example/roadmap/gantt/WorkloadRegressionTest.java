@@ -176,7 +176,9 @@ class WorkloadRegressionTest {
         TeamAbsenceRepository absences = mock(TeamAbsenceRepository.class);
         TargetStartRepository schedules = mock(TargetStartRepository.class);
         when(absences.findAll()).thenReturn(List.of());
-        when(schedules.findSchedules()).thenReturn(Map.of());
+        LocalDate start = LocalDate.of(2026, 9, 14);
+        when(schedules.findSchedules()).thenReturn(Map.of(
+                "DECIMAL", new TargetStartRepository.Schedule(start, start.plusDays(4), null)));
         when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList()))
                 .thenReturn(new JiraSearchResponseDto(List.of(issue("DECIMAL", "2026-09-14", "2.2"))));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));

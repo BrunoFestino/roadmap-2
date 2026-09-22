@@ -71,10 +71,12 @@ class EffortPolicyTest {
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         var snapshot = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
-        assertThat(snapshot.tasks()).extracting(GanttTask::key).containsExactly("SUB-PLANNED", "SUB-JIRA", "TASK-JIRA");
-        assertThat(snapshot.tasks()).extracting(GanttTask::md).containsExactly(1.25, 10.0, 2.2);
+        assertThat(snapshot.tasks()).extracting(GanttTask::key).containsExactly("SUB-PLANNED");
+        assertThat(snapshot.tasks()).extracting(GanttTask::md).containsExactly(1.25);
         assertThat(snapshot.unplannedTasks()).extracting(UnplannedTask::taskKey)
-                .containsExactly("SUB-MISSING", "TASK-PLANNED");
+                .containsExactly("SUB-JIRA", "SUB-MISSING", "TASK-PLANNED", "TASK-JIRA");
+        assertThat(snapshot.unplannedTasks()).filteredOn(task -> task.reason() == UnplannedReason.NO_DATE)
+                .extracting(UnplannedTask::taskKey).containsExactly("SUB-JIRA", "TASK-JIRA");
     }
 
     @Test void trafficLightsHaveStrictDailyAndWeeklyBoundaries() {
@@ -211,12 +213,28 @@ class EffortPolicyTest {
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of(
                 new JiraIssueDto("EPIC", epic), new JiraIssueDto("EPIC-MISSING", noEstimate))));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
+        var schedules = mock(TargetStartRepository.class);
+        when(schedules.findSchedules()).thenReturn(Map.of(
+                "TASK", new TargetStartRepository.Schedule(LocalDate.of(2026, 9, 14),
+                LocalDate.of(2026, 9, 18), null)));
         var data = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
-                mock(TargetStartRepository.class), ROSTER, STACK_RESOLVER).snapshot(List.of());
+                schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
         assertThat(data.tasks()).extracting(GanttTask::md).containsExactly(2.0, 12.5, 0.0);
         var report = new BuildWorkloadReportUseCase(null, null, PROPS, ROSTER)
                 .build(data, LocalDate.of(2026, 9, 14));
         assertThat(person(report).totalAssignedHours()).isCloseTo(16, within(1e-6));
+    }
+
+    @Test void taskWithoutLocalTargetEndIsExcludedEvenWhenJiraProvidesAStart() {
+        var day = LocalDate.of(2026, 9, 14);
+        var data = snapshot(List.of(new JiraIssueDto("TASK", fields("Task", 57600, 0))), Map.of());
+
+        assertThat(data.tasks()).isEmpty();
+        assertThat(data.unplannedTasks()).singleElement().satisfies(task -> {
+            assertThat(task.taskKey()).isEqualTo("TASK");
+            assertThat(task.reason()).isEqualTo(UnplannedReason.NO_DATE);
+            assertThat(task.startDate()).isEqualTo(day);
+        });
     }
 
     @Test void prjTaskIsTakenFromTheTaskThenParentThenEpicOrLeftEmpty() {
@@ -235,7 +253,12 @@ class EffortPolicyTest {
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of(epic)));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         var schedules = mock(TargetStartRepository.class);
-        when(schedules.findSchedules()).thenReturn(Map.of());
+        var day = LocalDate.of(2026, 9, 14);
+        when(schedules.findSchedules()).thenReturn(Map.of(
+                "CHILD-PARENT", new TargetStartRepository.Schedule(day, day.plusDays(4), null),
+                "OWN", new TargetStartRepository.Schedule(day, day.plusDays(4), null),
+                "CHILD-EPIC", new TargetStartRepository.Schedule(day, day.plusDays(4), null),
+                "NONE", new TargetStartRepository.Schedule(day, day.plusDays(4), null)));
 
         var snapshot = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());

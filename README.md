@@ -113,7 +113,7 @@ de horas divisibles, no una garantía de ejecución que modele dependencias entr
 
 #### Fechas y límites importantes
 
-- Start local prevalece sobre Jira Target Start. First Time In Progress solo
+- Una tarea o subtarea necesita Target End local para aparecer en el Gantt. Start local prevalece sobre Jira Target Start. First Time In Progress solo
   sirve como alternativa si la tarea está actualmente In Progress.
 - Sin inicio, una tarea va a Needs attention y no entra en la carga fechada.
   Con inicio pero sin End local se calcula una ventana provisional a partir
