@@ -6,9 +6,10 @@ import java.util.Map;
 
 public interface JiraClient {
 
+    /** Open work assigned to the configured roster, across Jira projects. */
     JiraSearchResponseDto searchOpenIssuesByAssignees(String projectKey, List<String> usernames);
 
-    /** Open roadmap work plus finalized subtasks needed to identify parents with subtasks. */
+    /** Open roster work plus finalized subtasks needed to identify parents with subtasks. */
     default JiraSearchResponseDto searchWorkloadIssuesByAssignees(String projectKey, List<String> usernames) {
         return searchOpenIssuesByAssignees(projectKey, usernames);
     }

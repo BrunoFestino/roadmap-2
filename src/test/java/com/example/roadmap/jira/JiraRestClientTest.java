@@ -132,6 +132,7 @@ class JiraRestClientTest {
         server.expect(request -> {
                     String query = request.getURI().getQuery();
                     assertThat(query).contains("issuetype IN subTaskIssueTypes()", "status NOT IN");
+                    assertThat(query).contains("assignee IN (test)").doesNotContain("project =");
                     assertThat(query.indexOf("status NOT IN")).isLessThan(query.indexOf("OR issuetype IN subTaskIssueTypes()"));
                 })
                 .andRespond(withSuccess("{\"startAt\":0,\"maxResults\":100,\"total\":0,\"issues\":[]}",

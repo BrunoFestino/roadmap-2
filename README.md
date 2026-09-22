@@ -128,8 +128,8 @@ de horas divisibles, no una garantía de ejecución que modele dependencias entr
   automáticamente el trabajo pendiente al futuro: hay que revisar las fechas.
 - No sumar a mano todas las estimaciones del Gantt para obtener capacidad:
   las épicas y User Stories son contexto y no aportan carga personal.
-- El alcance es el equipo configurado: tareas sin responsable o asignadas fuera
-  de ese equipo no se cuentan. By role agrupa el Gantt por stack efectivo; Team
+- El alcance es el equipo configurado en todos los proyectos de Jira: tareas sin responsable
+  o asignadas fuera de ese equipo no se cuentan. By role agrupa el Gantt por stack efectivo; Team
   workload agrupa personas por el rol del equipo, que no cambia al editar un stack.
 - Los filtros de Needs attention solo afectan sus listas, no los totales de carga.
   El histograma usa las mismas horas semanales que Team capacity & load, pero cada persona
@@ -168,7 +168,7 @@ Las instrucciones siguientes permiten conectar la aplicación con Jira y Postgre
 ## Prerequisites
 
 - Docker Engine with the Docker Compose plugin (recommended), or Java 21+
-- Jira Personal Access Token with read access to the configured project
+- Jira Personal Access Token with read access to issues assigned to the configured team
 - PostgreSQL credentials
 
 ## First run with Docker Compose
@@ -248,7 +248,7 @@ creates and migrates an empty schema automatically.
 | --- | --- | --- | --- |
 | `ROADMAP_JIRA_BASE_URL` | Yes | None | Base URL of the Jira instance |
 | `ROADMAP_JIRA_TOKEN` | Yes | None | Jira PAT sent as a Bearer token |
-| `ROADMAP_JIRA_PROJECT` | Yes | - | Jira project containing the roadmap |
+| `ROADMAP_JIRA_PROJECT` | Yes | - | Root Jira project for epics and milestones; assigned work is read across projects |
 | `ROADMAP_JIRA_CONNECT_TIMEOUT` | No | `10s` | Jira connection timeout |
 | `ROADMAP_JIRA_READ_TIMEOUT` | No | `30s` | Jira response timeout |
 | `ROADMAP_JIRA_FIELD_EFFORT_ESTIMATE` | No | `customfield_10001` | Epic estimate in MD; tasks and subtasks use Time Tracking Original Estimate |

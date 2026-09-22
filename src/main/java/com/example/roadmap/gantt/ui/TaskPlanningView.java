@@ -112,7 +112,7 @@ public class TaskPlanningView extends VerticalLayout {
     }
 
     private Component subtitle() {
-        Span subtitle = new Span("Plan open Epics, Stories, Tasks, Bugs, Spikes and Subtasks. "
+        Span subtitle = new Span("Plan open Stories, Tasks, Bugs, Spikes and Subtasks assigned to the team, across projects. "
                 + "This screen defines dates and stack; Team capacity & load shows the resulting weekly allocation. "
                 + "Tasks, Stories, Bugs, Spikes and subtasks use Jira Time Tracking Original Estimate; parent issues with subtasks are excluded. "
                 + "The local stack is optional and takes priority over Jira and the person's role. "

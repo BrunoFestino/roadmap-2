@@ -31,8 +31,7 @@ public class JiraRestClient implements JiraClient {
         if (assignees.isEmpty()) {
             return new JiraSearchResponseDto(List.of());
         }
-        String jql = "project = " + projectKey
-                + " AND assignee IN (" + String.join(", ", assignees) + ")"
+        String jql = "assignee IN (" + String.join(", ", assignees) + ")"
                 + " AND " + OPEN_STATUSES
                 + " AND (" + EXECUTABLE_TYPES
                 + " OR issuetype IN subTaskIssueTypes())"
@@ -46,8 +45,7 @@ public class JiraRestClient implements JiraClient {
         if (assignees.isEmpty()) {
             return new JiraSearchResponseDto(List.of());
         }
-        String jql = "project = " + projectKey
-                + " AND assignee IN (" + String.join(", ", assignees) + ")"
+        String jql = "assignee IN (" + String.join(", ", assignees) + ")"
                 + " AND ((" + EXECUTABLE_TYPES + " AND " + OPEN_STATUSES + ")"
                 + " OR issuetype IN subTaskIssueTypes())"
                 + " ORDER BY key ASC";

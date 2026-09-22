@@ -136,9 +136,9 @@ public class InformationView extends VerticalLayout {
                 rows("Task planning", "Defines the inputs: the task's Start, End and optional local stack. The effort estimate is shown for reference and comes from Jira.",
                         "Team capacity & load", "Shows the calculated result: effort distributed across eight weekly buckets and compared with each person's available capacity. Expand a person to see total effort, weekly allocation and remaining work.",
                         "Workload histogram", "The same weekly allocated hours as Team capacity & load. A dotted line marks normal capacity. Excess is yellow up to 8 h per available day, then red. Each person has an independent chart scale; compare numeric values, not bar heights across people.",
-                        "By role / By person", "Gantt views show date windows. By role groups tasks by effective stack; Team capacity & load groups people by roster role. Epics and Stories are context only. Bugs and Spikes are executable work. A long bar does not mean full-time dedication.",
+                        "By role / By person", "Gantt views show date windows. By role groups tasks by effective stack; Team capacity & load groups people by roster role. Issues from any Jira project are included when assigned to the configured team. Epics and Stories are context only. Bugs and Spikes are executable work. A long bar does not mean full-time dedication.",
                         "Needs attention", "Missing dates and missing estimates have separate lists. Their search and person filters narrow those lists only, not the workload totals or histogram."),
-                note("Scope matters.", "Person workload covers the configured team roster. Unassigned issues and issues assigned outside that roster are not counted. This is not a project-wide backlog or a historical worklog report."));
+                note("Scope matters.", "Person workload covers the configured team roster across Jira projects. Unassigned issues and issues assigned outside that roster are not counted. This is not a project-wide backlog or a historical worklog report."));
     }
 
     private Component section(String id, String number, String title, String description, Component... content) {
