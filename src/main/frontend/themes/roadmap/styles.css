@@ -174,7 +174,7 @@
     line-height: 1.5;
 }
 
-.usage-task-planned {
+.usage-task-remaining {
     color: var(--app-ink);
     font-size: 10.5px;
     font-weight: 700;

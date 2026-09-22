@@ -21,4 +21,9 @@ public interface JiraClient {
     default Map<String, String> findIssueSummaries(List<String> issueKeys) {
         return Map.of();
     }
+
+    /** Full fields for referenced parent and grandparent issues used by roadmap enrichment. */
+    default List<com.example.roadmap.jira.dto.JiraIssueDto> findIssueHierarchy(List<String> issueKeys) {
+        return List.of();
+    }
 }

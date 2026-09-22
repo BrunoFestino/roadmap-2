@@ -858,10 +858,9 @@ public class RoadmapView extends VerticalLayout {
 
     /**
      * The drill-down of a person's row, laid out as Microsoft Project's Resource Usage view:
-     * one row per task - never repeated - across the very same week columns as the row above,
-     * so the week that turns red lines up with the tasks that caused it. The shaded cells draw
-     * the task's committed window, each number is the hours that task demands in that week, and
-     * the closing row sums each column back to the person's own cell.
+     * one row per task - never repeated - across the very same week columns as the row above.
+     * The detail shows where the work still owed can be completed from today onwards, so a
+     * task is not painted in a later week merely because its original commitment touched it.
      */
     private Component taskBreakdown(PersonWorkload person, LocalDate asOf) {
         List<LocalDate> weekStarts = person.weeks().stream().map(WeekLoad::weekStart).toList();
@@ -925,11 +924,11 @@ public class RoadmapView extends VerticalLayout {
                 .set("gap", "6px 16px").set("font-size", "11px").set("color", GanttStyle.MUTED)
                 .set("padding", "6px 2px");
 
-        legend.add(legendSwatch("#EAF2F6", "Task is active during this week"));
-        legend.add(legendSwatch("#FCFCFD", "Outside its window"));
-        legend.add(legendText("Allocated this week", "the task's share of its total effort assigned to this week"));
-        legend.add(legendText("Remaining this week", "work left after Jira logged hours, placed on this week's remaining days"));
-        legend.add(legendText("- no hours", "no hours assigned this week; review calendar and distribution"));
+        legend.add(legendSwatch("#EAF2F6", "Remaining work is placed here"));
+        legend.add(legendSwatch("#FCFCFD", "No remaining work is placed here"));
+        legend.add(legendText("Remaining this week", "work still owed after Jira logged hours, placed where it can be completed"));
+        legend.add(legendText("Blank week", "no remaining work is placed here; it was completed or placed in an earlier week"));
+        legend.add(legendText("Summary above", "the committed plan; the detail below follows current remaining work"));
         return legend;
     }
 
@@ -978,51 +977,50 @@ public class RoadmapView extends VerticalLayout {
         return chip;
     }
 
-    /**
-     * A single task-week cell. Inside the task's window it is shaded even when it contributes
-     * no hours - an absence has to read as a hole in the task, not as the task being over.
-     */
+    /** A single task-week cell for the current remaining-work placement. */
     private Div breakdownHoursCell(TaskLoad task, WeekLoad week, double hours, double pending) {
         boolean insideWindow = !task.startDate().isAfter(week.weekEnd())
                 && !task.endDate().isBefore(week.weekStart());
+        boolean hasRemaining = pending > 0.000001;
 
-        Span value = new Span(hours > 0 ? "Allocated this week " + formatHours(hours) + " h"
-                : insideWindow ? "Allocated this week 0 h" : "");
-        value.addClassName("usage-task-planned");
-        Span pendingValue = new Span("Remaining this week " + formatHours(pending) + " h"
-                + " · " + formatMd(WorkContour.toMd(pending)) + " MD");
-        pendingValue.addClassName("usage-task-pending");
+        Span value = new Span(hasRemaining ? "Remaining this week " + formatHours(pending) + " h" : "");
+        value.addClassName("usage-task-remaining");
 
         Div cell = new Div();
         cell.addClassName("usage-task-hours");
-        cell.add(value);
-        if (insideWindow) {
-            cell.add(pendingValue);
+        if (hasRemaining) {
+            Span remainingMd = new Span(formatMd(WorkContour.toMd(pending)) + " MD");
+            remainingMd.addClassName("usage-task-pending");
+            cell.add(value, remainingMd);
         }
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("gap", "3px").set("padding", "8px").set("min-height", "42px")
-                .set("background", insideWindow ? "#EAF2F6" : "#FCFCFD");
-        if (insideWindow) {
+                .set("background", hasRemaining ? "#EAF2F6" : "#FCFCFD");
+        if (hasRemaining) {
             cell.getStyle().set("box-shadow", "inset 0 0 0 1px #D3E3EB");
         }
-        if (hours > 0) {
+        if (hasRemaining) {
             cell.getElement().setAttribute("title", task.taskKey() + " · week "
                     + formatShortDate(week.weekStart()) + "\n" + formatHours(hours) + " effort h"
-                    + "\n" + formatHours(task.dailyHours()) + " h/day this week ("
-                    + Math.round(task.dedicationPct()) + "% dedication)");
+                    + " original plan\n" + formatHours(pending) + " h still due here"
+                    + "\nRemaining work is placed from today within the committed window.");
+        } else if (insideWindow && hours > 0) {
+            cell.getElement().setAttribute("title", task.taskKey() + " · week "
+                    + formatShortDate(week.weekStart())
+                    + "\nNo remaining work placed here. The original plan included "
+                    + formatHours(hours) + " h, but the remaining work was placed earlier.");
         } else if (insideWindow) {
             cell.getElement().setAttribute("title", task.taskKey() + " · week "
                     + formatShortDate(week.weekStart())
-                    + "\nInside the window but with no hours: non-working week, absence, or effort "
-                    + "was assigned to other weeks in the window because no capacity was available here.");
+                    + "\nInside the committed window, but no remaining work is placed here.");
         }
         return cell;
     }
 
     private Div breakdownTotalNameCell() {
-        Span label = new Span("Total assigned");
+        Span label = new Span("Remaining workload");
         label.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", GanttStyle.PRIMARY_900);
-        Span note = new Span("sum of the tasks above");
+        Span note = new Span("current work shown above");
         note.getStyle().set("font-size", "10.5px").set("color", GanttStyle.MUTED);
 
         Div cell = new Div(label, note);
@@ -1033,15 +1031,14 @@ public class RoadmapView extends VerticalLayout {
     }
 
     private Div breakdownTotalCell(WeekLoad week) {
-        Span plan = new Span(formatHours(week.assignedHours()) + " / "
-                + formatHours(week.capacityHours()) + " h assigned");
+        double remaining = week.tasks().stream().mapToDouble(TaskLoad::remainingHours).sum();
+        Span plan = new Span(formatHours(remaining) + " h remaining");
         plan.addClassName("usage-task-total-plan");
         Div cell = new Div(plan);
         cell.getStyle().set("background", GanttStyle.WEEKEND_BG)
                 .set("padding", "7px 8px").set("min-height", "0");
         cell.getElement().setAttribute("title", "Week of " + formatShortDate(week.weekStart()) + "\n"
-                + formatHours(week.assignedHours()) + " assigned h of "
-                + formatHours(week.capacityHours()) + " available h");
+                + formatHours(remaining) + " h of current remaining work");
         return cell;
     }
 

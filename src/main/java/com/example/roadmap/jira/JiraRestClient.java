@@ -87,6 +87,18 @@ public class JiraRestClient implements JiraClient {
         return Map.copyOf(summaries);
     }
 
+    @Override
+    public List<JiraIssueDto> findIssueHierarchy(List<String> issueKeys) {
+        List<String> keys = issueKeys.stream().filter(Objects::nonNull)
+                .map(String::trim).filter(key -> key.matches("[A-Za-z][A-Za-z0-9_]*-[0-9]+"))
+                .distinct().toList();
+        if (keys.isEmpty()) {
+            return List.of();
+        }
+        return searchAllPages("key IN (" + String.join(", ", keys) + ") ORDER BY key ASC",
+                roadmapFields()).issues();
+    }
+
     private JiraSearchResponseDto searchAllPages(String jql, String fields) {
         List<JiraIssueDto> issues = new ArrayList<>();
         int startAt = 0;
