@@ -86,7 +86,7 @@ public class TargetStartRepository {
             throw new IllegalArgumentException("endDate cannot be before startDate");
         }
         if (localStack != null && !localStack.selectable()) {
-            throw new IllegalArgumentException("localStack must be one of the four selectable stacks");
+            throw new IllegalArgumentException("localStack must be one of the six selectable stacks");
         }
         jdbcTemplate.update("""
                         INSERT INTO roadmap_schedule (issue_key, start_date, end_date, stack_local)

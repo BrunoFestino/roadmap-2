@@ -19,6 +19,8 @@ public final class TaskStackResolver {
         register(configured, properties.backend(), TaskStack.BACKEND);
         register(configured, properties.mobile(), TaskStack.MOBILE);
         register(configured, properties.devops(), TaskStack.DEVOPS);
+        register(configured, properties.po(), TaskStack.PO);
+        register(configured, properties.sqc(), TaskStack.SQC);
         aliases = Map.copyOf(configured);
     }
 

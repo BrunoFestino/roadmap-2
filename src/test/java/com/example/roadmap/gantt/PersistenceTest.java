@@ -14,7 +14,7 @@ class PersistenceTest {
         try (var postgres = EmbeddedPostgres.start()) {
             var source = postgres.getPostgresDatabase();
             var flyway = Flyway.configure().dataSource(source).load();
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(5);
             var jdbc = new JdbcTemplate(source);
             assertThat(jdbc.queryForObject("SELECT count(*) FROM roadmap_schedule", Integer.class)).isZero();
             assertThat(jdbc.queryForObject("SELECT count(*) FROM team_absence", Integer.class)).isZero();
@@ -23,10 +23,13 @@ class PersistenceTest {
             LocalDate start = LocalDate.of(2026, 9, 11);
             schedules.saveSchedule("TEST-TEST", start, start.plusDays(3));
             schedules.saveSchedule("TEST-TEST", start, start.plusDays(7), TaskStack.FRONTEND);
+            schedules.saveSchedule("TEST-PO", start, start.plusDays(7), TaskStack.PO);
             var absence = absences.add("jdoe", start, start.plusDays(1), AbsenceType.VACATION, "Prueba");
             assertThat(flyway.migrate().migrationsExecuted).isZero();
             assertThat(new TargetStartRepository(jdbc).findScheduleByIssueKey("TEST-TEST"))
                     .hasValue(new TargetStartRepository.Schedule(start, start.plusDays(7), TaskStack.FRONTEND));
+            assertThat(new TargetStartRepository(jdbc).findScheduleByIssueKey("TEST-PO"))
+                    .hasValue(new TargetStartRepository.Schedule(start, start.plusDays(7), TaskStack.PO));
             assertThat(absences.findAll()).containsExactly(absence);
             absences.update(new TeamAbsence(absence.id(), absence.username(), start, start.plusDays(2), absence.type(), "Editada"));
             assertThat(absences.findAll().getFirst().note()).isEqualTo("Editada");
@@ -58,7 +61,7 @@ class PersistenceTest {
             var absence = new TeamAbsenceRepository(jdbc)
                     .add("jdoe", start, start, AbsenceType.VACATION, "Preserved");
             var flyway = Flyway.configure().dataSource(source).load();
-            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(1);
+            assertThat(flyway.migrate().migrationsExecuted).isEqualTo(2);
             assertThat(jdbc.queryForObject("""
                     SELECT count(*) FROM information_schema.columns
                     WHERE table_schema = 'public' AND table_name = 'roadmap_schedule' AND column_name = 'effort_md'

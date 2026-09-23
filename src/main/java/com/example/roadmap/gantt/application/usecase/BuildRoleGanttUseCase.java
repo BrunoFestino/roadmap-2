@@ -20,7 +20,8 @@ import org.springframework.stereotype.Service;
 public class BuildRoleGanttUseCase {
 
     private static final List<TaskStack> STACKS = List.of(TaskStack.FRONTEND, TaskStack.BACKEND,
-            TaskStack.MOBILE, TaskStack.DEVOPS, TaskStack.AMBIGUOUS, TaskStack.UNCLASSIFIED);
+            TaskStack.MOBILE, TaskStack.DEVOPS, TaskStack.PO, TaskStack.SQC,
+            TaskStack.AMBIGUOUS, TaskStack.UNCLASSIFIED);
 
     private final GanttDataProvider dataProvider;
 

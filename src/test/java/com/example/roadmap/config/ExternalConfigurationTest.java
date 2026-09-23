@@ -63,7 +63,7 @@ class ExternalConfigurationTest {
 
     @Test void stackAliasesCanChangeWithoutChangingCode() {
         var resolver = new TaskStackResolver(new TaskStackAliasProperties(
-                "web-ui", "services", "android,ios", "platform"));
+                "web-ui", "services", "android,ios", "platform", null, null));
 
         assertThat(resolver.classifyJira(List.of("services")).stack()).isEqualTo(TaskStack.BACKEND);
         assertThat(resolver.classifyJira(List.of("ios")).stack()).isEqualTo(TaskStack.MOBILE);
@@ -72,7 +72,7 @@ class ExternalConfigurationTest {
 
     @Test void stackAliasesCannotPointToDifferentStacks() {
         assertThatThrownBy(() -> new TaskStackResolver(new TaskStackAliasProperties(
-                "shared", "shared", "mobile", "devops")))
+                "shared", "shared", "mobile", "devops", null, null)))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("configured for both");
     }

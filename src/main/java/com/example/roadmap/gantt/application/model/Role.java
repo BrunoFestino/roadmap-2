@@ -36,8 +36,7 @@ public enum Role {
     /** The equivalent task stack when the person's role is used as the final fallback. */
     public TaskStack stack() {
         return switch (this) {
-            case FRONTEND, BACKEND, MOBILE, DEVOPS -> TaskStack.valueOf(name());
-            case PO, SQC -> TaskStack.UNCLASSIFIED;
+            case FRONTEND, BACKEND, MOBILE, DEVOPS, PO, SQC -> TaskStack.valueOf(name());
         };
     }
 }

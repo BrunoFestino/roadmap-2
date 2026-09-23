@@ -251,7 +251,7 @@ public class TaskPlanningView extends VerticalLayout {
         jiraStackField.setReadOnly(true);
         roleStackField.setReadOnly(true);
         localStackField.setItems(List.of(TaskStack.FRONTEND, TaskStack.BACKEND,
-                TaskStack.MOBILE, TaskStack.DEVOPS));
+                TaskStack.MOBILE, TaskStack.DEVOPS, TaskStack.PO, TaskStack.SQC));
         localStackField.setItemLabelGenerator(TaskStack::label);
         localStackField.setClearButtonVisible(true);
         localStackField.setPlaceholder("Use inherited value");

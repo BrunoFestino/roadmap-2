@@ -271,6 +271,8 @@ creates and migrates an empty schema automatically.
 | `ROADMAP_STACK_ALIASES_BACKEND` | No | Built-in aliases | Comma-separated Jira labels |
 | `ROADMAP_STACK_ALIASES_MOBILE` | No | Built-in aliases | Comma-separated Jira labels |
 | `ROADMAP_STACK_ALIASES_DEVOPS` | No | Built-in aliases | Comma-separated Jira labels |
+| `ROADMAP_STACK_ALIASES_PO` | No | Built-in aliases | Comma-separated Jira labels |
+| `ROADMAP_STACK_ALIASES_SQC` | No | Built-in aliases | Comma-separated Jira labels |
 
 Never commit Jira or database credentials. Schedules and absences are stored in
 PostgreSQL.

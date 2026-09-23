@@ -52,6 +52,14 @@ class TaskStackResolverTest {
     }
 
     @Test
+    void productAndQualityRolesHaveTheirOwnStacks() {
+        assertThat(resolver.resolve(null, List.of(), Role.PO).stack()).isEqualTo(TaskStack.PO);
+        assertThat(resolver.resolve(null, List.of(), Role.SQC).stack()).isEqualTo(TaskStack.SQC);
+        assertThat(resolver.classifyJira(List.of("product owner")).stack()).isEqualTo(TaskStack.PO);
+        assertThat(resolver.classifyJira(List.of("quality control")).stack()).isEqualTo(TaskStack.SQC);
+    }
+
+    @Test
     void missingEverySourceRemainsUnclassified() {
         var result = resolver.resolve(null, List.of(), null);
 
@@ -74,5 +82,23 @@ class TaskStackResolverTest {
             assertThat(group.label()).isEqualTo("Front");
             assertThat(group.tasks()).containsExactly(task);
         });
+    }
+
+    @Test
+    void roleRoadmapIncludesProductAndQualityStacks() {
+        var po = GanttTeamRoster.defaults().byUsername("lthomas");
+        var sqc = GanttTeamRoster.defaults().byUsername("hclark");
+        var date = LocalDate.now();
+        var poTask = GanttTask.create("PO-1", "Product planning", "Task", po,
+                date, date, StartDateSource.LOCAL_PLAN, 1, "Open", date,
+                ignored -> false, null, 0, TaskStack.PO, TaskStackSource.PERSON_ROLE);
+        var sqcTask = GanttTask.create("SQC-1", "Quality validation", "Task", sqc,
+                date, date, StartDateSource.LOCAL_PLAN, 1, "Open", date,
+                ignored -> false, null, 0, TaskStack.SQC, TaskStackSource.PERSON_ROLE);
+
+        var chart = new BuildRoleGanttUseCase(null).build(List.of(poTask, sqcTask), List.of());
+
+        assertThat(chart.groups()).extracting(group -> group.label())
+                .containsExactly("PO", "SQC");
     }
 }
