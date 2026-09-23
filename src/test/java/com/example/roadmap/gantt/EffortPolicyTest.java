@@ -161,7 +161,7 @@ class EffortPolicyTest {
     }
 
     @Test void closedSubtaskWithoutEffortStillExcludesTheParent() {
-        for (String status : List.of("Done", "Cancelled", "Resolved", "Closed", "Obsolete")) {
+        for (String status : WorkflowStatus.FINAL) {
             var child = fields("Sub-task", null, 0);
             child.setStatus(new JiraIssueDto.Status(status));
             var data = snapshot(List.of(new JiraIssueDto("PARENT", fields("Task", 288000, 0)),
@@ -169,6 +169,43 @@ class EffortPolicyTest {
             assertThat(data.tasks()).isEmpty();
             assertThat(data.unplannedTasks()).isEmpty();
         }
+    }
+
+    @Test void allFinalStatesAreAbsentFromGanttAndAttentionList() {
+        assertThat(WorkflowStatus.FINAL).containsExactlyInAnyOrder(
+                "In Use", "Delivered", "Closed", "Cancelled", "Moved to Bug", "Rejected",
+                "Done", "Obsolete", "Risk Accepted", "Resolved");
+        var day = LocalDate.of(2026, 9, 14);
+        for (String status : WorkflowStatus.FINAL) {
+            var task = fields("Task", 28800, 0);
+            task.setStatus(new JiraIssueDto.Status(status));
+            var data = snapshot(List.of(new JiraIssueDto("FINAL", task)), Map.of(
+                    "FINAL", new TargetStartRepository.Schedule(day, day.plusDays(4), null)));
+            assertThat(data.tasks()).as(status).isEmpty();
+            assertThat(data.unplannedTasks()).as(status).isEmpty();
+            assertThat(WorkflowStatus.isFinal("  " + status.toLowerCase() + "  ")).as(status).isTrue();
+        }
+        assertThat(WorkflowStatus.isFinal("Blocked")).isFalse();
+    }
+
+    @Test void finalEpicsAndMilestonesAreAbsentEvenIfJiraReturnsThem() {
+        var jira = mock(JiraClient.class);
+        var epic = fields("Epic", 28800, 0);
+        epic.setStatus(new JiraIssueDto.Status("Delivered"));
+        epic.setDuedate("2026-09-25");
+        var milestone = fields("Milestone", null, 0);
+        milestone.setStatus(new JiraIssueDto.Status("Risk Accepted"));
+        milestone.setDuedate("2026-09-25");
+        when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList()))
+                .thenReturn(new JiraSearchResponseDto(List.of()));
+        when(jira.searchOpenEpics(anyString()))
+                .thenReturn(new JiraSearchResponseDto(List.of(new JiraIssueDto("EPIC", epic))));
+        when(jira.searchOpenMilestones(anyString()))
+                .thenReturn(new JiraSearchResponseDto(List.of(new JiraIssueDto("MILESTONE", milestone))));
+        var data = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+                mock(TargetStartRepository.class), ROSTER, STACK_RESOLVER).snapshot(List.of());
+        assertThat(data.tasks()).isEmpty();
+        assertThat(data.milestones()).isEmpty();
     }
 
     @Test void customJiraSubtaskTypesUseTimeTrackingAndExcludeParents() {

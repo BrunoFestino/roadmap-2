@@ -1,6 +1,7 @@
 package com.example.roadmap.jira;
 
 import com.example.roadmap.config.JiraProperties;
+import com.example.roadmap.gantt.application.model.WorkflowStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -131,7 +132,7 @@ class JiraRestClientTest {
         var server = MockRestServiceServer.bindTo(builder).build();
         server.expect(request -> {
                     String query = request.getURI().getQuery();
-                    assertThat(query).contains("issuetype IN subTaskIssueTypes()", "status NOT IN");
+                    assertThat(query).contains("issuetype IN subTaskIssueTypes()", WorkflowStatus.jiraOpenClause());
                     assertThat(query).contains("assignee IN (test)").doesNotContain("project =");
                     assertThat(query.indexOf("status NOT IN")).isLessThan(query.indexOf("OR issuetype IN subTaskIssueTypes()"));
                 })

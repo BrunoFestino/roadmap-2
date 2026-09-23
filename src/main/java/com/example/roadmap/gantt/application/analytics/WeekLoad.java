@@ -59,6 +59,33 @@ public record WeekLoad(
                 WorkContour.PRODUCTIVE_HOURS_PER_DAY);
     }
 
+    /** Figures to show when making a commitment now: elapsed business days cannot supply capacity. */
+    public double actionableAssignedHours() {
+        return partiallyElapsed() ? remainingAssignedHours : assignedHours;
+    }
+
+    public double actionableCapacityHours() {
+        return partiallyElapsed() ? remainingCapacityHours : capacityHours;
+    }
+
+    public double actionableUtilizationPct() {
+        return actionableCapacityHours() <= 0 ? 0
+                : actionableAssignedHours() * 100 / actionableCapacityHours();
+    }
+
+    public LoadSignal actionableLoadSignal() {
+        return LoadSignal.of(actionableAssignedHours(), actionableCapacityHours(),
+                WorkContour.PRODUCTIVE_HOURS_PER_DAY);
+    }
+
+    public boolean actionableOverallocated() {
+        return actionableAssignedHours() > actionableCapacityHours() + 0.000001;
+    }
+
+    public double actionableOverflowHours() {
+        return Math.max(0, actionableAssignedHours() - actionableCapacityHours());
+    }
+
     public double criticalCapacityHours() {
         return capacityHours * LoadSignal.CRITICAL_HOURS_PER_DAY
                 / WorkContour.PRODUCTIVE_HOURS_PER_DAY;

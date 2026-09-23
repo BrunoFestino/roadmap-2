@@ -60,6 +60,39 @@ class WorkloadRegressionTest {
         assertThat(p.freeFrom()).isEqualTo(FRIDAY.plusDays(3));
     }
 
+    @Test void currentWeekShowsOnlyBusinessHoursLeftAndOutstandingWork() {
+        LocalDate wednesday = LocalDate.of(2026, 9, 23);
+        var task = task("OPEN", "2026-09-21", "2026-09-25", 2, 0);
+        WeekLoad week = person(report(List.of(task), List.of(), wednesday)).weeks().getFirst();
+        assertThat(week.capacityHours()).isEqualTo(30);
+        assertThat(week.actionableCapacityHours()).isEqualTo(18);
+        assertThat(week.actionableAssignedHours()).isCloseTo(16, within(1e-6));
+        assertThat(week.actionableUtilizationPct()).isCloseTo(16.0 / 18 * 100, within(1e-6));
+        assertThat(week.hasCarriedOverWork()).isTrue();
+
+        WeekLoad next = person(report(List.of(), List.of(), wednesday)).weeks().get(1);
+        assertThat(next.actionableCapacityHours()).isEqualTo(30);
+    }
+
+    @Test void currentWeekCapacitySkipsElapsedDaysAndTheWeekend() {
+        LocalDate monday = LocalDate.of(2026, 9, 21);
+        for (int day = 0; day < 7; day++) {
+            WeekLoad week = person(report(List.of(), List.of(), monday.plusDays(day))).weeks().getFirst();
+            assertThat(week.actionableCapacityHours()).isEqualTo(Math.max(0, 5 - day) * 6);
+        }
+    }
+
+    @Test void overdueCurrentWeekEffortRaisesAnActionableOverload() {
+        LocalDate friday = LocalDate.of(2026, 9, 25);
+        WeekLoad week = person(report(List.of(task("LATE", "2026-09-21", "2026-09-25", 4, 0)),
+                List.of(), friday)).weeks().getFirst();
+        assertThat(week.actionableCapacityHours()).isEqualTo(6);
+        assertThat(week.actionableAssignedHours()).isCloseTo(32, within(1e-6));
+        assertThat(week.actionableOverflowHours()).isCloseTo(26, within(1e-6));
+        assertThat(week.actionableOverallocated()).isTrue();
+        assertThat(week.actionableLoadSignal()).isEqualTo(LoadSignal.RED);
+    }
+
     @Test void freeDateSkipsPersonalAbsencesAndWeekends() {
         var absence = TeamAbsence.create(PERSON.username(), FRIDAY.plusDays(3), FRIDAY.plusDays(4), AbsenceType.VACATION, "");
         assertThat(person(report(List.of(), List.of(absence), FRIDAY.plusDays(1))).freeFrom()).isEqualTo(FRIDAY.plusDays(5));

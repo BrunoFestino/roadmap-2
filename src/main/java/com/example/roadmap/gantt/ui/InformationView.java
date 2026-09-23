@@ -96,10 +96,10 @@ public class InformationView extends VerticalLayout {
                 columns("information-concepts", green, yellow, red),
                 note("The boundary matters.", "Exactly 30 h is green. More than 30 h and up to 40 h is yellow. More than 40 h is red. With three available days, the weekly limits become 18 h and 24 h. The red threshold does not increase capacity available for new work."),
                 columns("information-quick-grid",
-                        example("How full is the weekly plan?", "16 h planned in a 30 h week", "Weekly utilization is 53.3%, displayed as 53%. The percentage describes the full weekly plan, even after some days have passed."),
-                        example("What is still available on Wednesday?", "6 h available", "The same 16 h task has 4 h logged and 12 h left. Wednesday to Friday offers 18 h of capacity, leaving 6 h available. No absences in this example.")),
+                        example("How full is a future week?", "16 h planned in a 30 h week", "Weekly utilization is 53.3%, displayed as 53%. Future weeks use all their available business days."),
+                        example("What is still available on Wednesday?", "12 / 18 h, 6 h available", "A 16 h task with 4 h logged has 12 h left. Wednesday to Friday offers 18 productive hours, so current-week utilization is 67%. Past days cannot supply capacity.")),
                 rows("Total effort", "The complete effort for a task, read from Jira and converted to hours and MD. It does not belong to one particular week.",
-                        "Assigned summary", "The person's weekly summary shows the committed plan and its capacity signal.",
+                        "Assigned summary", "The current week shows work still due against productive hours remaining from today. Future weeks show the full weekly plan.",
                         "Remaining workload", "The expanded task detail shows only work still owed after Jira logged hours, placed where it can be completed from today onwards. A later week stays blank when the remaining work was placed earlier."),
                 disclosure("Availability and team examples",
                         example("Two people, different loads", "A group total can hide an overloaded person", "One person has 44 h and another has 6 h assigned, each with 30 h capacity. The role is at 83%, but the first person is red. Expand people before committing more work."),
@@ -115,7 +115,7 @@ public class InformationView extends VerticalLayout {
                         "Missing start", "The task appears in Needs attention and is excluded from the Gantt and dated workload.",
                         "Missing local Target End", "The task appears in Needs attention and is excluded from the Gantt and workload. Jira dates never substitute for a local Target End.",
                         "Committed dates", "Local Start and End define the window, including both endpoints. Absences reduce usable days without moving End. Ordinary task due dates do not set this window; due dates position milestones and can supply an epic's end.",
-                        "Final states", "Done, Cancelled, Resolved, Closed and Obsolete no longer add future task load. Blocked is not a final state."),
+                        "Final states", "In Use, Delivered, Closed, Cancelled, Moved to Bug, Rejected, Done, Obsolete, Risk Accepted and Resolved no longer add future task load. Blocked is not a final state."),
                 note("Keep dates realistic.", "A task whose entire window is past, or has no available days, has nowhere to distribute remaining work. The app does not automatically move it into a new window. Review dates before interpreting free capacity as a new commitment."));
     }
 

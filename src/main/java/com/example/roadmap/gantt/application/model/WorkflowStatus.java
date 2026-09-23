@@ -5,7 +5,9 @@ import java.util.List;
 /** Jira workflow states that stop contributing future workload. */
 public final class WorkflowStatus {
 
-    public static final List<String> FINAL = List.of("Done", "Cancelled", "Resolved", "Closed", "Obsolete");
+    public static final List<String> FINAL = List.of(
+            "In Use", "Delivered", "Closed", "Cancelled", "Moved to Bug", "Rejected",
+            "Done", "Obsolete", "Risk Accepted", "Resolved");
 
     private WorkflowStatus() {
     }

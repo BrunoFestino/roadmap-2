@@ -70,7 +70,8 @@ public class TestFixtureApplication {
                   ('TEST-PARENT',  '2026-10-19', '2026-10-30'),
                   ('TEST-SUB-A',   '2026-10-19', '2026-10-30'),
                   ('TEST-SUB-B',   '2026-10-19', '2026-10-30'),
-                  ('TEST-SUB-C',   '2026-10-19', '2026-10-30')
+                  ('TEST-SUB-C',   '2026-10-19', '2026-10-30'),
+                  ('TEST-FINAL',   '2026-10-19', '2026-10-30')
                 """);
         jdbc.update("""
                 INSERT INTO team_absence (id, username, start_date, end_date, absence_type, note) VALUES
@@ -143,6 +144,7 @@ public class TestFixtureApplication {
                         issue("TEST-SUB-B", "Jira estimate required", "Sub-task", "jdoe", "Open", null, null, "TEST-PARENT", null, null, 0),
                         issue("TEST-SUB-C", "Jira estimate required", "Sub-task", "mjohnson", "Open", null, null, "TEST-PARENT", null, null, 0),
                         issue("TEST-OVERDUE", "Overdue commitment", "Bug", "jdoe", "Blocked", "3", null, null, null, null, 0),
+                        issue("TEST-FINAL", "Finished work must not count", "Task", "jdoe", "In Use", "3", null, null, null, null, 0),
                         issue("TEST-WEEKEND", "Window with no available days", "Task", "jdoe", "Open", "1", null, null, null, null, 0),
                         issue("TEST-2101", "Biometric authentication", "Task", "asmith", "In Progress", "5", "TEST-2000", null, null, null, 8),
                         issue("TEST-2102", "Responsive components", "Task", "mjohnson", "Open", "8", "TEST-2002", null, null, null, 0),

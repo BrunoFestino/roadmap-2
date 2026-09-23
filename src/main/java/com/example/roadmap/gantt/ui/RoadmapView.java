@@ -427,6 +427,9 @@ public class RoadmapView extends VerticalLayout {
         content.getStyle().set("gap", "16px").set("min-width",
                 (USAGE_NAME_COL_PX + workload.weekStarts().size() * 145) + "px");
         content.add(weekHeader(workload.weekStarts(), workload.asOf(), "Role / person", "weekly plan and capacity"));
+        Map<String, List<PlanningWarning>> warningsByPerson = workload.warnings().stream()
+                .filter(warning -> warning.reason().startsWith("Overdue:") && warning.remainingHours() > 0)
+                .collect(Collectors.groupingBy(PlanningWarning::assigneeName));
 
         boolean anyone = false;
         for (RoleWorkload role : workload.roles()) {
@@ -435,7 +438,7 @@ public class RoadmapView extends VerticalLayout {
                 continue;
             }
             anyone = true;
-            content.add(roleUsageRow(role, people, workload.weekStarts(), workload.asOf()));
+            content.add(roleUsageRow(role, people, workload.weekStarts(), workload.asOf(), warningsByPerson));
         }
         if (!anyone) {
             content.add(emptyNote("No people have planned workload."));
@@ -447,7 +450,8 @@ public class RoadmapView extends VerticalLayout {
                 "The result of the plan: estimated effort distributed by role, person, and week, then compared with available hours. "
                         + "Expand a person to see each task's total estimate, weekly share, and work still due. "
                         + "Effort is distributed and leveled within committed dates without assuming full dedication. "
-                        + "Capacity uses 6 productive hours per business day and subtracts absences.",
+                        + "Capacity uses 6 productive hours per business day and subtracts absences. "
+                        + "The current week shows only business days and work remaining from today.",
                 scrollable(content));
     }
 
@@ -456,7 +460,7 @@ public class RoadmapView extends VerticalLayout {
      * here so every aggregate is directly traceable to its rows.
      */
     private Component roleUsageRow(RoleWorkload role, List<PersonWorkload> people, List<LocalDate> weekStarts,
-                                   LocalDate asOf) {
+                                   LocalDate asOf, Map<String, List<PlanningWarning>> warningsByPerson) {
         List<WeekLoad> roleWeeks = RoleWorkload.aggregate(people, weekStarts);
 
         Div grid = new Div();
@@ -465,14 +469,15 @@ public class RoadmapView extends VerticalLayout {
                 .set("gap", "1px").set("background", GanttStyle.BORDER).set("width", "100%");
         grid.add(roleNameCell(role, people, roleWeeks));
         for (int week = 0; week < roleWeeks.size(); week++) {
-            grid.add(roleWeekCell(role, people, roleWeeks.get(week), week));
+            grid.add(roleWeekCell(role, people, roleWeeks.get(week), week, asOf));
         }
 
         VerticalLayout inner = compactLayout();
         inner.addClassName("usage-people");
         inner.getStyle().set("gap", "6px");
         for (PersonWorkload person : people) {
-            inner.add(personUsageRow(person, weekStarts, asOf));
+            inner.add(personUsageRow(person, weekStarts, asOf,
+                    warningsByPerson.getOrDefault(person.name(), List.of())));
         }
 
         Details details = new Details(grid, inner);
@@ -492,7 +497,7 @@ public class RoadmapView extends VerticalLayout {
 
         double weeklyCapacity = roleWeeks.isEmpty() ? 0 : roleWeeks.get(roleWeeks.size() - 1).capacityHours();
         Span detail = new Span(people.size() + (people.size() == 1 ? " person" : " people")
-                + " · " + formatHours(weeklyCapacity) + " h/week");
+                + " · " + formatHours(weeklyCapacity) + " h/full week");
         detail.getStyle().set("font-size", "10.5px").set("color", GanttStyle.MUTED);
 
         Div cell = new Div(identity, detail);
@@ -508,43 +513,50 @@ public class RoadmapView extends VerticalLayout {
      * is the one number that can look healthy while hiding somebody at 160%, so the count of
      * overallocated members is printed right next to the percentage that would have buried it.
      */
-    private Div roleWeekCell(RoleWorkload role, List<PersonWorkload> people, WeekLoad week, int index) {
+    private Div roleWeekCell(RoleWorkload role, List<PersonWorkload> people, WeekLoad week, int index,
+                             LocalDate asOf) {
         Div cell = new Div();
         cell.addClassName("usage-role-week");
-        cell.getElement().setAttribute("data-load-level", week.loadSignal().name());
+        cell.getElement().setAttribute("data-load-level", week.actionableLoadSignal().name());
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("gap", "3px").set("background", loadBackground(week))
                 .set("padding", "8px").set("min-height", "50px").set("min-width", "0");
 
-        if (week.unavailable()) {
-            cell.add(mutedLine("No capacity", true));
+        if (week.actionableCapacityHours() <= 0) {
+            cell.add(mutedLine(currentWeekInProgress(week, asOf) && week.capacityHours() > 0
+                    ? "No time left" : "No capacity", true));
+            if (week.actionableAssignedHours() > 0) {
+                cell.add(warningChip(formatHours(week.actionableAssignedHours()) + " h still due", true));
+            }
+            cell.add(riskChip(week, asOf));
             return cell;
         }
 
-        Span headline = new Span(Math.round(week.utilizationPct()) + "%");
+        Span headline = new Span(Math.round(week.actionableUtilizationPct()) + "%");
         headline.getStyle().set("font-size", "14px").set("font-weight", "800")
                 .set("line-height", "1").set("color", loadTextColor(week));
 
-        Span detail = new Span(formatHours(week.assignedHours()) + " / "
-                + formatHours(week.capacityHours()) + " h");
+        Span detail = new Span(formatHours(week.actionableAssignedHours()) + " / "
+                + formatHours(week.actionableCapacityHours()) + " h"
+                + (currentWeekInProgress(week, asOf) ? " left this week" : ""));
         detail.getStyle().set("font-size", "10px").set("color", GanttStyle.MUTED).set("line-height", "1.25");
 
         cell.add(headline, loadFillBar(week), detail, balanceLine(week), mdLine(week));
 
         long over = people.stream()
-                .filter(person -> index < person.weeks().size() && person.weeks().get(index).overallocated())
+                .filter(person -> index < person.weeks().size() && person.weeks().get(index).actionableOverallocated())
                 .count();
         if (over > 0) {
             boolean critical = people.stream().anyMatch(person -> index < person.weeks().size()
-                    && person.weeks().get(index).loadSignal() == LoadSignal.RED);
-            cell.add(warningChip(over + " of " + people.size() + " overallocated", critical));
+                    && person.weeks().get(index).actionableLoadSignal() == LoadSignal.RED);
+            cell.add(warningChip(over + " of " + people.size() + " over", critical));
         }
-        cell.add(riskChip(week));
+        cell.add(riskChip(week, asOf));
 
         cell.getElement().setAttribute("title", role.roleLabel() + " · week "
                 + formatShortDate(week.weekStart()) + " to " + formatShortDate(week.weekEnd())
-                + "\n" + formatHours(week.assignedHours()) + " committed h of "
-                + formatHours(week.capacityHours()) + " role h"
+                + "\n" + formatHours(week.actionableAssignedHours()) + " committed h of "
+                + formatHours(week.actionableCapacityHours()) + " remaining role h"
                 + "\n" + people.size() + " people · " + over + " overallocated");
         return cell;
     }
@@ -558,9 +570,9 @@ public class RoadmapView extends VerticalLayout {
      * says is still owed - never the hours of a Monday that is already gone.
      */
     private Span balanceLine(WeekLoad week) {
-        boolean over = week.overallocated();
+        boolean over = week.actionableOverallocated();
         Span line = new Span(over
-                ? "over by " + formatHours(week.overflowHours()) + " h"
+                ? "over by " + formatHours(week.actionableOverflowHours()) + " h"
                 : formatHours(week.freeHours()) + " h available");
         line.getStyle().set("font-size", "11px").set("font-weight", "800")
                 .set("color", loadTextColor(week))
@@ -582,11 +594,12 @@ public class RoadmapView extends VerticalLayout {
      * and therefore now weighs on the days that are left. It is measured, not assumed: the app
      * no longer guesses whether Monday's plan happened, it reads what was logged.
      */
-    private Span riskChip(WeekLoad week) {
-        if (!week.hasCarriedOverWork()) {
+    private Span riskChip(WeekLoad week, LocalDate asOf) {
+        if (!currentWeekInProgress(week, asOf) || !week.hasCarriedOverWork()) {
             return new Span();
         }
-        Span chip = new Span("⚠ " + formatHours(week.carriedOverHours()) + " h carried over");
+        Span chip = new Span("⚠ " + formatHours(week.carriedOverHours()) + " h carried");
+        chip.getElement().setAttribute("title", "Planned work from elapsed days remains open according to Jira. Review the task plan and worklog.");
         chip.getStyle().set("font-size", "9.5px").set("font-weight", "700").set("color", "#A16207")
                 .set("line-height", "1.2").set("overflow-wrap", "anywhere");
         return chip;
@@ -725,8 +738,8 @@ public class RoadmapView extends VerticalLayout {
 
         legend.add(legendText("Each square", "one week for a role or person"));
         legend.add(legendText("Assigned", "task hours assigned during the week"));
-        legend.add(legendText("Available", "business days × 6 productive h, minus absences"));
-        legend.add(legendText("Percentage", "assigned hours ÷ available hours"));
+        legend.add(legendText("Available", "remaining business days × 6 productive h, minus absences in the current week"));
+        legend.add(legendText("Percentage", "work still due ÷ time left in the current week"));
         legend.add(legendText("Carried-over hours",
                 "work planned for elapsed days that has not yet been logged in Jira"));
         legend.add(legendSwatch(loadBackground(LoadSignal.GREEN), "Within capacity · up to 6 h/day avg."));
@@ -757,7 +770,8 @@ public class RoadmapView extends VerticalLayout {
         return item;
     }
 
-    private Component personUsageRow(PersonWorkload person, List<LocalDate> weekStarts, LocalDate asOf) {
+    private Component personUsageRow(PersonWorkload person, List<LocalDate> weekStarts, LocalDate asOf,
+                                     List<PlanningWarning> overdueTasks) {
         Div grid = new Div();
         grid.addClassName("usage-person-grid");
         grid.getStyle().set("display", "grid").set("grid-template-columns", gridTemplate(weekStarts.size()))
@@ -765,7 +779,7 @@ public class RoadmapView extends VerticalLayout {
 
         grid.add(usageNameCell(person));
         for (WeekLoad week : person.weeks()) {
-            grid.add(usageWeekCell(person, week));
+            grid.add(usageWeekCell(person, week, asOf, overdueTasks));
         }
 
         Details details = new Details(grid, taskBreakdown(person, asOf));
@@ -800,28 +814,30 @@ public class RoadmapView extends VerticalLayout {
      * evidence. Above the six-hour baseline it is yellow; above eight hours per available
      * day it is red. The percentage still uses productive capacity as its denominator.
      */
-    private Div usageWeekCell(PersonWorkload person, WeekLoad week) {
+    private Div usageWeekCell(PersonWorkload person, WeekLoad week, LocalDate asOf,
+                              List<PlanningWarning> overdueTasks) {
         Div cell = new Div();
         cell.addClassName("usage-person-week");
-        cell.getElement().setAttribute("data-load-level", week.loadSignal().name());
+        cell.getElement().setAttribute("data-load-level", week.actionableLoadSignal().name());
         cell.getStyle().set("display", "flex").set("flex-direction", "column").set("justify-content", "center")
                 .set("gap", "6px").set("background", loadBackground(week))
                 .set("padding", "10px").set("min-height", "82px").set("min-width", "0");
 
-        if (week.unavailable()) {
-            Span headline = new Span("Absent");
+        if (week.actionableCapacityHours() <= 0) {
+            Span headline = new Span(currentWeekInProgress(week, asOf) && week.capacityHours() > 0
+                    ? "No time left" : "Absent");
             headline.getStyle().set("font-size", "11px").set("font-weight", "700").set("color", "#9AA4AA")
                     .set("line-height", "1");
-            Span detail = new Span("0 h available");
+            Span detail = new Span(formatHours(week.actionableAssignedHours()) + " h still due");
             detail.getStyle().set("font-size", "10px").set("color", GanttStyle.MUTED).set("line-height", "1.25");
             cell.add(headline, detail);
         } else {
-            Span hours = new Span(formatHours(week.assignedHours()) + " / "
-                    + formatHours(week.capacityHours()) + " h");
+            Span hours = new Span(formatHours(week.actionableAssignedHours()) + " / "
+                    + formatHours(week.actionableCapacityHours()) + " h");
             hours.addClassName("usage-occupied-hours");
-            Span label = new Span("assigned");
+            Span label = new Span(currentWeekInProgress(week, asOf) ? "still due / time left" : "assigned");
             label.addClassName("usage-occupied-label");
-            Span percentage = new Span(Math.round(week.utilizationPct()) + "%");
+            Span percentage = new Span(Math.round(week.actionableUtilizationPct()) + "%");
             percentage.addClassName("usage-occupied-percentage");
 
             Div headline = new Div(new Div(hours, label), percentage);
@@ -829,11 +845,28 @@ public class RoadmapView extends VerticalLayout {
             cell.add(headline, loadFillBar(week));
         }
 
+        if (week.actionableOverallocated()) {
+            Span warning = warningChip("⚠ " + formatHours(week.actionableOverflowHours())
+                    + " h over", true);
+            warning.getElement().setAttribute("title", "Remaining work exceeds the productive hours left this week. Review dates and assignments.");
+            cell.add(warning);
+        }
+        cell.add(riskChip(week, asOf));
+        if (!asOf.isBefore(week.weekStart()) && !asOf.isAfter(week.weekEnd()) && !overdueTasks.isEmpty()) {
+            double overdueHours = overdueTasks.stream().mapToDouble(PlanningWarning::remainingHours).sum();
+            Span warning = warningChip("⚠ " + formatHours(overdueHours)
+                    + " h overdue", true);
+            warning.getElement().setAttribute("title", overdueTasks.stream()
+                    .map(PlanningWarning::taskKey).collect(Collectors.joining(", "))
+                    + " have passed their end dates. Their remaining work is outside this week's capacity plan.");
+            cell.add(warning);
+        }
+
         cell.getElement().setAttribute("title", person.name() + " · week " + formatShortDate(week.weekStart())
                 + " to " + formatShortDate(week.weekEnd())
-                + "\n" + formatHours(week.assignedHours()) + " assigned h of "
-                + formatHours(week.capacityHours()) + " available h"
-                + "\nUtilization: " + Math.round(week.utilizationPct()) + "%"
+                + "\n" + formatHours(week.actionableAssignedHours()) + " h due of "
+                + formatHours(week.actionableCapacityHours()) + " h left"
+                + "\nUtilization: " + Math.round(week.actionableUtilizationPct()) + "%"
                 + "\n" + week.tasks().size() + " tasks");
         return cell;
     }
@@ -844,7 +877,7 @@ public class RoadmapView extends VerticalLayout {
      * have to grow past its own container.
      */
     private Div loadFillBar(WeekLoad week) {
-        double filled = Math.min(100, week.utilizationPct());
+        double filled = Math.min(100, week.actionableUtilizationPct());
         String color = loadTextColor(week);
 
         Div fill = new Div();
@@ -1077,8 +1110,8 @@ public class RoadmapView extends VerticalLayout {
     }
 
     private Div personHistogram(PersonWorkload person) {
-        double scale = Math.max(person.weeks().stream().mapToDouble(WeekLoad::capacityHours).max().orElse(1),
-                person.weeks().stream().mapToDouble(WeekLoad::assignedHours).max().orElse(1));
+        double scale = Math.max(person.weeks().stream().mapToDouble(WeekLoad::actionableCapacityHours).max().orElse(1),
+                person.weeks().stream().mapToDouble(WeekLoad::actionableAssignedHours).max().orElse(1));
 
         FlexLayout bars = new FlexLayout();
         bars.addClassName("histogram-bars");
@@ -1089,10 +1122,12 @@ public class RoadmapView extends VerticalLayout {
 
         Span name = new Span(person.name());
         name.addClassName("histogram-person-name");
-        Span summary = new Span(person.roleLabel() + " · peak " + Math.round(person.peakUtilizationPct()) + "%"
+        long peak = Math.round(person.weeks().stream().mapToDouble(WeekLoad::actionableUtilizationPct).max().orElse(0));
+        Span summary = new Span(person.roleLabel() + " · peak " + peak + "%"
                 + " · " + formatHours(person.totalFreeHours()) + " h available");
         summary.addClassName("histogram-person-summary");
-        summary.getStyle().set("color", person.hasOverallocation() ? signalTextColor(person.loadSignal()) : GanttStyle.MUTED);
+        summary.getStyle().set("color", person.weeks().stream().anyMatch(WeekLoad::actionableOverallocated)
+                ? signalTextColor(LoadSignal.RED) : GanttStyle.MUTED);
 
         Div card = new Div(name, summary, bars);
         card.addClassName("histogram-card");
@@ -1101,14 +1136,18 @@ public class RoadmapView extends VerticalLayout {
     }
 
     private Div histogramBar(PersonWorkload person, WeekLoad week, double scale) {
-        int assignedPx = heightPx(Math.min(week.assignedHours(), week.capacityHours()), scale);
-        int warningPx = heightPx(week.warningBandHours(), scale);
-        int criticalPx = heightPx(week.criticalOverflowHours(), scale);
-        int capacityPx = heightPx(week.capacityHours(), scale);
+        double assigned = week.actionableAssignedHours();
+        double capacity = week.actionableCapacityHours();
+        double criticalCapacity = capacity * LoadSignal.CRITICAL_HOURS_PER_DAY
+                / WorkContour.PRODUCTIVE_HOURS_PER_DAY;
+        int assignedPx = heightPx(Math.min(assigned, capacity), scale);
+        int warningPx = heightPx(Math.max(0, Math.min(assigned, criticalCapacity) - capacity), scale);
+        int criticalPx = heightPx(Math.max(0, assigned - criticalCapacity), scale);
+        int capacityPx = heightPx(capacity, scale);
 
         Div stack = new Div();
         stack.addClassName("histogram-bar-plot");
-        stack.getElement().setAttribute("data-load-level", week.loadSignal().name());
+        stack.getElement().setAttribute("data-load-level", week.actionableLoadSignal().name());
         stack.getStyle().set("position", "relative").set("flex", "1 1 0")
                 .set("height", HISTOGRAM_HEIGHT_PX + "px").set("min-width", "14px");
 
@@ -1129,10 +1168,10 @@ public class RoadmapView extends VerticalLayout {
         stack.add(capacityLine);
 
         stack.getElement().setAttribute("title", "Week of " + formatShortDate(week.weekStart())
-                + "\n" + formatHours(week.assignedHours()) + " h of " + formatHours(week.capacityHours()) + " h"
-                + " (" + Math.round(week.utilizationPct()) + "%)"
-                + "\nYellow above " + formatHours(week.capacityHours()) + " h; red above "
-                + formatHours(week.criticalCapacityHours()) + " h");
+                + "\n" + formatHours(assigned) + " h of " + formatHours(capacity) + " h"
+                + " (" + Math.round(week.actionableUtilizationPct()) + "%)"
+                + "\nYellow above " + formatHours(capacity) + " h; red above "
+                + formatHours(criticalCapacity) + " h");
         return stack;
     }
 
@@ -1357,8 +1396,12 @@ public class RoadmapView extends VerticalLayout {
         return scroll;
     }
 
+    private boolean currentWeekInProgress(WeekLoad week, LocalDate asOf) {
+        return week.weekStart().isBefore(asOf) && !week.weekEnd().isBefore(asOf);
+    }
+
     private String loadBackground(WeekLoad week) {
-        return loadBackground(week.loadSignal());
+        return loadBackground(week.actionableLoadSignal());
     }
 
     private String loadBackground(LoadSignal signal) {
@@ -1371,7 +1414,7 @@ public class RoadmapView extends VerticalLayout {
     }
 
     private String loadTextColor(WeekLoad week) {
-        return signalTextColor(week.loadSignal());
+        return signalTextColor(week.actionableLoadSignal());
     }
 
     private String signalTextColor(LoadSignal signal) {

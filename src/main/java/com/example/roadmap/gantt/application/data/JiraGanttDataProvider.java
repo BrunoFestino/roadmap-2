@@ -170,7 +170,8 @@ public class JiraGanttDataProvider implements GanttDataProvider {
     }
 
     private GanttTask toEpic(JiraIssueDto issue, TargetStartRepository.Schedule schedule) {
-        if (issue.key() == null || issue.fields() == null) {
+        if (issue.key() == null || issue.fields() == null
+                || WorkflowStatus.isFinal(statusName(issue.fields()))) {
             return null;
         }
         JiraIssueDto.Fields fields = issue.fields();
