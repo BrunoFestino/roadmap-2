@@ -2,6 +2,7 @@ package com.example.roadmap.gantt;
 
 import com.example.roadmap.gantt.application.data.*;
 import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.JiraIssueLoader;
 import com.example.roadmap.jira.dto.*;
 import java.util.List;
 import java.util.Map;
@@ -34,7 +35,7 @@ class InitiativeNamesTest {
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         when(jira.findIssueSummaries(List.of("EPIC-2"))).thenReturn(Map.of("EPIC-2", "Closed initiative"));
 
-        var snapshot = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+        var snapshot = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
 
         assertThat(snapshot.tasks()).extracting(task -> task.key()).containsExactly("TASK-1", "TASK-2", "TASK-3");

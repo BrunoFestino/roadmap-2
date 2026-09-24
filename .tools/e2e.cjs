@@ -28,6 +28,7 @@ async function run() {
     await page.locator('h1').waitFor();
     await idle();
     await page.getByRole('textbox', { name: 'Jira ID', exact: true }).fill(key);
+    await page.waitForFunction(() => document.querySelector('vaadin-grid').size === 1);
     await idle();
     const link = page.getByRole('link', { name: new RegExp('^Open ' + key + ' in Jira:') });
     await link.waitFor();
@@ -100,8 +101,17 @@ async function run() {
     await save();
     await visible('This window has no available days');
     assert.equal((await state()).plans.find(p => p.issue_key === 'TEST-TEST').start_date, '2026-09-11');
+    await date(0, '09/21/2026');
+    await date(1, '09/23/2026');
+    await save();
+    await visible('This window has no available days');
+    assert.equal((await state()).plans.find(p => p.issue_key === 'TEST-TEST').start_date, '2026-09-11');
     await date(0, '10/09/2026');
     await date(1, '10/12/2026');
+    await fault('absence-load');
+    await save();
+    await visible('The dates for TEST-TEST were not saved.');
+    assert.equal((await state()).plans.find(p => p.issue_key === 'TEST-TEST').start_date, '2026-09-11');
     await save();
     await visible('Plan saved for TEST-TEST.');
     await openPlan();
@@ -109,8 +119,13 @@ async function run() {
     await fault('reload-after-save');
     await date(1, '10/13/2026');
     await save();
-    await visible('was saved, but refresh failed');
+    await visible('Plan saved for TEST-TEST.');
     assert.equal((await state()).plans.find(p => p.issue_key === 'TEST-TEST').end_date, '2026-10-13');
+    assert.deepEqual(await dates(), ['2026-10-09', '2026-10-13']);
+    // A Jira outage no longer delays or fails a successful local save.
+    await page.getByRole('button', { name: 'Refresh', exact: true }).click();
+    await visible('Tasks could not be refreshed. The visible data was preserved');
+    assert.deepEqual(await dates(), ['2026-10-09', '2026-10-13']);
     await page.getByRole('button', { name: 'Refresh', exact: true }).click();
     await visible('Select an Epic, Story, Task, Bug, Spike or Subtask from the table.');
     await openPlan();
@@ -165,6 +180,26 @@ async function run() {
     await page.getByRole('button', { name: 'Refresh roadmap', exact: true }).click();
     await visible('Team capacity & load');
     await idle();
+    assert.equal(await page.locator('.usage-task-breakdown').count(), 0, 'Closed details must not be built');
+    const personRows = page.locator('.usage-person-row');
+    const firstPerson = personRows.first();
+    const requestsBeforeDetails = (await (await fetch(base + '/test/performance')).json()).jiraCalls;
+    await firstPerson.locator('[slot="summary"]').click();
+    await firstPerson.locator('.usage-task-breakdown').waitFor();
+    const detailText = await firstPerson.locator('.usage-task-breakdown').innerText();
+    await firstPerson.locator('[slot="summary"]').click();
+    await idle();
+    await firstPerson.locator('[slot="summary"]').click();
+    await idle();
+    assert.equal(await firstPerson.locator('.usage-task-breakdown').count(), 1);
+    assert.equal(await firstPerson.locator('.usage-task-breakdown').innerText(), detailText);
+    for (let index = 1; index < await personRows.count(); index++) {
+      await personRows.nth(index).locator('[slot="summary"]').click();
+      await personRows.nth(index).locator('.usage-task-breakdown').waitFor();
+    }
+    assert.equal(await page.locator('.usage-task-breakdown').count(), await personRows.count());
+    assert.equal((await (await fetch(base + '/test/performance')).json()).jiraCalls, requestsBeforeDetails);
+    console.log('PASS: lazy details for every person, reopen without duplicates or Jira requests.');
     assert.deepEqual(errors, []);
     await page.screenshot({ path: path.join(out, 'roadmap.png') });
     console.log('PASS: roadmap reload recovery and no JavaScript errors.');

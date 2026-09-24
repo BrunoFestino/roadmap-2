@@ -782,7 +782,13 @@ public class RoadmapView extends VerticalLayout {
             grid.add(usageWeekCell(person, week, asOf, overdueTasks));
         }
 
-        Details details = new Details(grid, taskBreakdown(person, asOf));
+        Details details = new Details();
+        details.setSummary(grid);
+        details.addOpenedChangeListener(event -> {
+            if (event.isOpened() && details.getContent().findAny().isEmpty()) {
+                details.add(taskBreakdown(person, asOf));
+            }
+        });
         details.addClassNames("usage-row", "usage-person-row");
         details.getStyle().set("width", "100%").set("padding", "0");
         details.getElement().getStyle().set("--lumo-space-m", "0px");

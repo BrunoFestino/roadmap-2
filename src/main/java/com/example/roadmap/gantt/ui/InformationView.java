@@ -125,7 +125,7 @@ public class InformationView extends VerticalLayout {
                 rows("Choose an item", "Use Show to select Epic, Story, Task, Bug, Spike, Subtask, Other or All. Filter by Jira ID and person, then select a row. Stories are context only; Bugs and Spikes consume capacity like Tasks.",
                         "Set the window", "Start and End are required. End cannot precede Start. Tasks and subtasks need at least one available business day in the window.",
                         "Review effort", "The read-only estimate shows MD and its Jira source. For Tasks, Stories, Bugs, Spikes and subtasks, enter Original Estimate in Jira Time Tracking: 20 h displays as 2.5 MD. For epics, enter MD in the Jira MD field. Refresh after changing Jira.",
-                        "Save and keep filters", "Saving reloads the list while preserving search and item type. The selected person is retained if still present in the refreshed list. Filters are local to this view, not saved across browser reloads or navigation away.",
+                        "Save and keep filters", "Saving updates the local plan immediately and keeps the selected issue and filters. Use Refresh to retrieve changes made in Jira or by other planners. Filters are local to this view, not saved across browser reloads or navigation away.",
                         "Choose a stack", "Local stack takes priority over recognized Jira labels, then the person's role. Conflicting recognized labels are shown as ambiguous. Changing stack does not reassign a task or create capacity.",
                         "Record absences", "Use Team availability to add, edit or remove absences. Return to Roadmap or use Refresh roadmap to rebuild the view with current planning and availability."));
     }

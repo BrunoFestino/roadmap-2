@@ -6,6 +6,7 @@ import com.example.roadmap.gantt.application.data.*;
 import com.example.roadmap.gantt.application.model.*;
 import com.example.roadmap.gantt.application.usecase.*;
 import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.JiraIssueLoader;
 import com.example.roadmap.jira.dto.*;
 import org.junit.jupiter.api.Test;
 import java.time.LocalDate;
@@ -158,7 +159,7 @@ class WorkloadRegressionTest {
         when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList())).thenReturn(new JiraSearchResponseDto(List.of(issue("NO-DATE", null, "0"), issue("DATED", "2026-09-14", "-2"))));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
-        var provider = new JiraGanttDataProvider(jira, PROPS, absences, schedules, ROSTER, STACK_RESOLVER);
+        var provider = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, absences, schedules, ROSTER, STACK_RESOLVER);
         var useCase = new BuildWorkloadReportUseCase(provider, absences, PROPS, ROSTER);
         var snapshot = useCase.loadSnapshot();
         new BuildRoleGanttUseCase(provider).build(snapshot.tasks(), snapshot.milestones());
@@ -217,7 +218,7 @@ class WorkloadRegressionTest {
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
 
-        var provider = new JiraGanttDataProvider(jira, PROPS, absences, schedules, ROSTER, STACK_RESOLVER);
+        var provider = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, absences, schedules, ROSTER, STACK_RESOLVER);
 
         assertThat(provider.snapshot(List.of()).tasks()).singleElement()
                 .extracting(GanttTask::md).isEqualTo(2.2);
@@ -263,7 +264,7 @@ class WorkloadRegressionTest {
                 .thenReturn(new JiraSearchResponseDto(List.of(parent, completed)));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
-        var provider = new JiraGanttDataProvider(jira, PROPS, absences, schedules, ROSTER, STACK_RESOLVER);
+        var provider = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, absences, schedules, ROSTER, STACK_RESOLVER);
 
         var snapshot = provider.snapshot(List.of());
 

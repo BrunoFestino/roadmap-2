@@ -4,14 +4,19 @@ import com.example.roadmap.gantt.application.data.TargetStartRepository;
 import com.example.roadmap.gantt.application.data.TeamAbsenceRepository;
 import com.example.roadmap.gantt.ui.TaskPlanningView;
 import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.JiraIssueLoader;
 import com.example.roadmap.jira.dto.JiraIssueDto;
 import com.example.roadmap.jira.dto.JiraSearchResponseDto;
 import com.vaadin.flow.component.Component;
+import com.vaadin.flow.component.UI;
+import com.vaadin.flow.component.button.Button;
+import com.vaadin.flow.component.datepicker.DatePicker;
 import com.vaadin.flow.component.grid.Grid;
 import com.vaadin.flow.component.textfield.NumberField;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.time.LocalDate;
 import java.util.stream.Stream;
 
 import static com.example.roadmap.gantt.WorkloadRegressionTest.*;
@@ -20,6 +25,54 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 class TaskPlanningEffortTest {
+    @Test void savingUpdatesLocalDatesAndSelectionWithoutFetchingJiraAgain() {
+        var jira = mock(JiraClient.class);
+        when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList()))
+                .thenReturn(new JiraSearchResponseDto(List.of(issue("TASK-1", "2026-09-14", "2"))));
+        when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
+        var schedules = mock(TargetStartRepository.class);
+        var absences = mock(TeamAbsenceRepository.class);
+        var ui = new UI();
+        UI.setCurrent(ui);
+        try {
+            var view = new TaskPlanningView(new JiraIssueLoader(jira, Runnable::run), PROPS,
+                    schedules, absences, ROSTER, STACK_RESOLVER);
+            ui.add(view);
+            UI.setCurrent(ui);
+            var grid = descendants(view).filter(Grid.class::isInstance).map(Grid.class::cast).findFirst().orElseThrow();
+            select(grid, 0);
+            var dates = descendants(view).filter(DatePicker.class::isInstance).map(DatePicker.class::cast).toList();
+            var start = LocalDate.of(2026, 10, 5);
+            var end = LocalDate.of(2026, 10, 9);
+            dates.get(0).setValue(start);
+            dates.get(1).setValue(end);
+            clearInvocations(jira);
+            var rowUpdates = new java.util.concurrent.atomic.AtomicInteger();
+            var registration = grid.getDataProvider().addDataProviderListener(event -> {
+                assertThat(event).isInstanceOf(com.vaadin.flow.data.provider.DataChangeEvent.DataRefreshEvent.class);
+                rowUpdates.incrementAndGet();
+            });
+            descendants(view).filter(Button.class::isInstance).map(Button.class::cast)
+                    .filter(button -> button.getText().equals("Save plan")).findFirst().orElseThrow().click();
+            registration.remove();
+            assertThat(rowUpdates.get()).isEqualTo(1);
+            verify(schedules).saveSchedule(eq("TASK-1"), eq(start), eq(end), any());
+            verify(absences).findByUsername(PERSON.username());
+            verify(absences, never()).findAll();
+            verifyNoInteractions(jira);
+            assertThat(grid.getSelectedItems()).hasSize(1);
+            assertThat(dates.get(0).getValue()).isEqualTo(start);
+            assertThat(dates.get(1).getValue()).isEqualTo(end);
+            // Reselecting reads the updated row instead of restoring the old schedule.
+            grid.deselectAll();
+            select(grid, 0);
+            assertThat(dates.get(0).getValue()).isEqualTo(start);
+            assertThat(dates.get(1).getValue()).isEqualTo(end);
+        } finally {
+            UI.setCurrent(null);
+        }
+    }
+
     @Test void planningDisplaysJiraSourcesReadOnlyAndExcludesParents() {
         var jira = mock(JiraClient.class);
         var task = issue("TASK", "2026-09-14", "2.2");
@@ -36,7 +89,7 @@ class TaskPlanningEffortTest {
                 .thenReturn(new JiraSearchResponseDto(List.of(parent, child, task, done)));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of(epic)));
         var schedules = mock(TargetStartRepository.class);
-        var view = new TaskPlanningView(jira, PROPS, schedules, mock(TeamAbsenceRepository.class),
+        var view = new TaskPlanningView(new JiraIssueLoader(jira, Runnable::run), PROPS, schedules, mock(TeamAbsenceRepository.class),
                 ROSTER, STACK_RESOLVER);
         Grid<?> grid = descendants(view).filter(Grid.class::isInstance).map(Grid.class::cast).findFirst().orElseThrow();
         var estimate = descendants(view).filter(NumberField.class::isInstance)

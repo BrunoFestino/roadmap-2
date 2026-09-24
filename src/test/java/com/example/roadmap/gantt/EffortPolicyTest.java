@@ -4,6 +4,7 @@ import com.example.roadmap.gantt.application.analytics.*;
 import com.example.roadmap.gantt.application.data.*;
 import com.example.roadmap.gantt.application.model.*;
 import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.JiraIssueLoader;
 import com.example.roadmap.jira.dto.*;
 import org.junit.jupiter.api.Test;
 
@@ -69,7 +70,7 @@ class EffortPolicyTest {
                 new JiraIssueDto("TASK-JIRA", fields("Task", 63360, 0)))));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
-        var snapshot = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+        var snapshot = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
         assertThat(snapshot.tasks()).extracting(GanttTask::key).containsExactly("SUB-PLANNED");
         assertThat(snapshot.tasks()).extracting(GanttTask::md).containsExactly(1.25);
@@ -107,7 +108,7 @@ class EffortPolicyTest {
         when(jira.searchWorkloadIssuesByAssignees(anyString(), anyList())).thenReturn(new JiraSearchResponseDto(issues));
         when(jira.searchOpenEpics(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
         when(jira.searchOpenMilestones(anyString())).thenReturn(new JiraSearchResponseDto(List.of()));
-        var result = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+        var result = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
         verify(schedules, never()).saveSchedule(anyString(), any(), any(), any());
         return result;
@@ -202,7 +203,7 @@ class EffortPolicyTest {
                 .thenReturn(new JiraSearchResponseDto(List.of(new JiraIssueDto("EPIC", epic))));
         when(jira.searchOpenMilestones(anyString()))
                 .thenReturn(new JiraSearchResponseDto(List.of(new JiraIssueDto("MILESTONE", milestone))));
-        var data = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+        var data = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, mock(TeamAbsenceRepository.class),
                 mock(TargetStartRepository.class), ROSTER, STACK_RESOLVER).snapshot(List.of());
         assertThat(data.tasks()).isEmpty();
         assertThat(data.milestones()).isEmpty();
@@ -254,7 +255,7 @@ class EffortPolicyTest {
         when(schedules.findSchedules()).thenReturn(Map.of(
                 "TASK", new TargetStartRepository.Schedule(LocalDate.of(2026, 9, 14),
                 LocalDate.of(2026, 9, 18), null)));
-        var data = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+        var data = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
         assertThat(data.tasks()).extracting(GanttTask::md).containsExactly(2.0, 12.5, 0.0);
         var report = new BuildWorkloadReportUseCase(null, null, PROPS, ROSTER)
@@ -297,7 +298,7 @@ class EffortPolicyTest {
                 "CHILD-EPIC", new TargetStartRepository.Schedule(day, day.plusDays(4), null),
                 "NONE", new TargetStartRepository.Schedule(day, day.plusDays(4), null)));
 
-        var snapshot = new JiraGanttDataProvider(jira, PROPS, mock(TeamAbsenceRepository.class),
+        var snapshot = new JiraGanttDataProvider(new JiraIssueLoader(jira, Runnable::run), PROPS, mock(TeamAbsenceRepository.class),
                 schedules, ROSTER, STACK_RESOLVER).snapshot(List.of());
 
         assertThat(snapshot.tasks()).filteredOn(task -> !task.isEpic())

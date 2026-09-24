@@ -2,6 +2,8 @@ package roadmap.fixture;
 
 import com.example.roadmap.config.JiraProperties;
 import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.JiraIssueLoader;
+import com.example.roadmap.config.JiraQueryConfiguration;
 import com.example.roadmap.jira.dto.*;
 import com.example.roadmap.gantt.application.model.*;
 import com.example.roadmap.gantt.application.data.*;
@@ -28,9 +30,12 @@ import java.util.concurrent.atomic.AtomicReference;
 /** Local-only fixture launcher. This class and its fault controls are never packaged in the app. */
 @EnableVaadin("com.example.roadmap")
 @SpringBootConfiguration
+@org.springframework.context.annotation.Import(JiraQueryConfiguration.class)
 @EnableAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, FlywayAutoConfiguration.class})
 public class TestFixtureApplication {
     private final AtomicReference<String> fault = new AtomicReference<>("none");
+    private final java.util.concurrent.atomic.AtomicInteger jiraCalls = new java.util.concurrent.atomic.AtomicInteger();
+    private volatile int jiraDelayMillis;
     private final GanttTeamRoster teamRoster = GanttTeamRoster.defaults();
     private final TaskStackResolver taskStackResolver = TaskStackResolver.defaults();
 
@@ -106,6 +111,9 @@ public class TestFixtureApplication {
     @Bean TeamAbsenceRepository absences(JdbcTemplate jdbc) {
         return new TeamAbsenceRepository(jdbc) {
             @Override public List<TeamAbsence> findAll() { fail("absence-load"); return super.findAll(); }
+            @Override public List<TeamAbsence> findByUsername(String username) {
+                fail("absence-load"); return super.findByUsername(username);
+            }
             @Override public TeamAbsence add(String u, LocalDate s, LocalDate e, AbsenceType t, String n) {
                 fail("absence-save"); return super.add(u, s, e, t, n);
             }
@@ -126,6 +134,7 @@ public class TestFixtureApplication {
     @Bean JiraClient jira() {
         return new JiraClient() {
             public JiraSearchResponseDto searchOpenIssuesByAssignees(String p, List<String> users) {
+                jiraRequest();
                 fail("jira-load");
                 return new JiraSearchResponseDto(List.of(
                         issue("TEST-2010", "Renewed mobile checkout", "User Story", "asmith", "Open", "13", "TEST-2000", null, "2026-09-07", null, 0),
@@ -169,6 +178,7 @@ public class TestFixtureApplication {
                         issue("TEST-2191", "Investigate intermittent webhooks", "Bug", "sbrown", "Blocked", "0", "TEST-2001", null, null, null, 0)));
             }
             public JiraSearchResponseDto searchOpenEpics(String p) {
+                jiraRequest();
                 if (Boolean.getBoolean("roadmap.fixture.initiative-cases")) {
                     return new JiraSearchResponseDto(List.of(
                             epic("TEST-2000", "Mobile experience", null, null, "Open"),
@@ -180,9 +190,11 @@ public class TestFixtureApplication {
                         epic("TEST-2002", "Accessible web experience", "2026-09-14", "2026-10-30", "Open")));
             }
             public Map<String, String> findIssueSummaries(List<String> keys) {
+                jiraRequest();
                 return keys.contains("TEST-2002") ? Map.of("TEST-2002", "Accessible web experience") : Map.of();
             }
             public JiraSearchResponseDto searchOpenMilestones(String p) {
+                jiraRequest();
                 return new JiraSearchResponseDto(List.of(
                         milestone("TEST-M1", "Internal pilot", "2026-09-04", "Open"),
                         milestone("TEST-M2", "Beta mobile", "2026-09-25", "Open"),
@@ -191,6 +203,16 @@ public class TestFixtureApplication {
                         milestone("TEST-M5", "Discarded delivery", "2026-09-18", "Closed")));
             }
         };
+    }
+
+    private void jiraRequest() {
+        jiraCalls.incrementAndGet();
+        try {
+            Thread.sleep(jiraDelayMillis);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Fixture request interrupted", e);
+        }
     }
 
     private JiraIssueDto issue(String key, String summary, String type, String username, String status,
@@ -247,7 +269,12 @@ public class TestFixtureApplication {
         }
     }
 
-    @Bean GanttDataProvider provider(JiraClient j, JiraProperties p, TeamAbsenceRepository a,
+    @Bean JiraIssueLoader issueLoader(JiraClient client,
+            @org.springframework.beans.factory.annotation.Qualifier("jiraQueryExecutor") java.util.concurrent.Executor executor) {
+        return new JiraIssueLoader(client, executor);
+    }
+
+    @Bean GanttDataProvider provider(JiraIssueLoader j, JiraProperties p, TeamAbsenceRepository a,
             TargetStartRepository s, GanttTeamRoster roster, TaskStackResolver resolver) {
         return new JiraGanttDataProvider(j, p, a, s, roster, resolver);
     }
@@ -270,6 +297,14 @@ public class TestFixtureApplication {
         @GetMapping("/test/state") Map<String, Object> state() {
             return Map.of("plans", jdbc.queryForList("SELECT * FROM roadmap_schedule ORDER BY issue_key"),
                     "absences", jdbc.queryForList("SELECT * FROM team_absence ORDER BY id"));
+        }
+        @PostMapping("/test/performance/{delay}") Map<String, Integer> performance(@PathVariable int delay) {
+            jiraDelayMillis = Math.max(0, Math.min(2000, delay));
+            jiraCalls.set(0);
+            return Map.of("delayMillis", jiraDelayMillis);
+        }
+        @GetMapping("/test/performance") Map<String, Integer> performance() {
+            return Map.of("jiraCalls", jiraCalls.get());
         }
     }
 }

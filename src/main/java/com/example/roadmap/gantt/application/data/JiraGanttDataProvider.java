@@ -15,7 +15,7 @@ import com.example.roadmap.gantt.application.model.TeamAbsence;
 import com.example.roadmap.gantt.application.model.TeamMember;
 import com.example.roadmap.gantt.application.model.WorkflowStatus;
 import com.example.roadmap.config.JiraProperties;
-import com.example.roadmap.jira.JiraClient;
+import com.example.roadmap.jira.JiraIssueLoader;
 import com.example.roadmap.jira.dto.JiraIssueDto;
 import org.springframework.stereotype.Component;
 
@@ -44,17 +44,17 @@ import java.util.function.Predicate;
 @Component
 public class JiraGanttDataProvider implements GanttDataProvider {
 
-    private final JiraClient jiraApiClient;
+    private final JiraIssueLoader jiraIssueLoader;
     private final JiraProperties jiraProperties;
     private final TeamAbsenceRepository absenceRepository;
     private final TargetStartRepository targetStartRepository;
     private final GanttTeamRoster teamRoster;
     private final TaskStackResolver taskStackResolver;
 
-    public JiraGanttDataProvider(JiraClient jiraApiClient, JiraProperties jiraProperties,
+    public JiraGanttDataProvider(JiraIssueLoader jiraIssueLoader, JiraProperties jiraProperties,
                                  TeamAbsenceRepository absenceRepository, TargetStartRepository targetStartRepository,
                                  GanttTeamRoster teamRoster, TaskStackResolver taskStackResolver) {
-        this.jiraApiClient = jiraApiClient;
+        this.jiraIssueLoader = jiraIssueLoader;
         this.jiraProperties = jiraProperties;
         this.absenceRepository = absenceRepository;
         this.targetStartRepository = targetStartRepository;
@@ -66,29 +66,27 @@ public class JiraGanttDataProvider implements GanttDataProvider {
 
     @Override
     public List<GanttTask> tasks() {
-        return loadTasks(absenceRepository.findAll()).tasks();
+        return loadTasks(absenceRepository.findAll(),
+                jiraIssueLoader.planning(jiraProperties.project(), teamRoster.usernames())).tasks();
     }
 
     @Override
     public RoadmapSnapshot snapshot(List<TeamAbsence> absences) {
-        RoadmapSnapshot loaded = loadTasks(absences);
-        List<Milestone> milestones = milestones();
+        var issues = jiraIssueLoader.roadmap(jiraProperties.project(), teamRoster.usernames());
+        RoadmapSnapshot loaded = loadTasks(absences, issues);
+        List<Milestone> milestones = toMilestones(issues.milestones());
         Map<String, String> summaries = new HashMap<>(loaded.issueSummaries());
         milestones.forEach(milestone -> summaries.put(milestone.key(), milestone.name()));
         List<String> missing = loaded.tasks().stream().map(GanttTask::initiativeKey)
                 .filter(java.util.Objects::nonNull).distinct().filter(key -> !summaries.containsKey(key)).toList();
-        if (!missing.isEmpty()) summaries.putAll(jiraApiClient.findIssueSummaries(missing));
+        if (!missing.isEmpty()) summaries.putAll(jiraIssueLoader.summaries(missing));
         return new RoadmapSnapshot(loaded.tasks(), milestones, absences, loaded.unplannedTasks(),
                 loaded.parentTaskKeys(), summaries);
     }
 
-    private RoadmapSnapshot loadTasks(List<TeamAbsence> absences) {
-        List<JiraIssueDto> issues = jiraApiClient
-                .searchWorkloadIssuesByAssignees(jiraProperties.project(), teamRoster.usernames())
-                .issues();
-        List<JiraIssueDto> epicIssues = jiraApiClient.searchOpenEpics(jiraProperties.project()).issues();
-        issues = issues == null ? List.of() : issues;
-        epicIssues = epicIssues == null ? List.of() : epicIssues;
+    private RoadmapSnapshot loadTasks(List<TeamAbsence> absences, JiraIssueLoader.Issues loaded) {
+        List<JiraIssueDto> issues = loaded.work();
+        List<JiraIssueDto> epicIssues = loaded.epics();
         if (issues.isEmpty() && epicIssues.isEmpty()) {
             return new RoadmapSnapshot(List.of(), List.of(), absences, List.of());
         }
@@ -273,9 +271,10 @@ public class JiraGanttDataProvider implements GanttDataProvider {
 
     @Override
     public List<Milestone> milestones() {
-        List<JiraIssueDto> issues = jiraApiClient
-                .searchOpenMilestones(jiraProperties.project())
-                .issues();
+        return toMilestones(jiraIssueLoader.milestones(jiraProperties.project()));
+    }
+
+    private List<Milestone> toMilestones(List<JiraIssueDto> issues) {
         if (issues == null || issues.isEmpty()) {
             return List.of();
         }
